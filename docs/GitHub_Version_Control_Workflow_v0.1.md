@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document defines the recommended GitHub version control workflow for the FutureWorld Unreal Engine 5 project.
+This document defines the recommended GitHub version control workflow for the Future World (FW) Unreal Engine 5 project.
 
 The goals are:
 
@@ -112,8 +112,8 @@ git push -u origin main
 If the Unreal project files already exist at that time, add them in the same first commit:
 
 ```powershell
-git add FutureWorld.uproject Source Config Content Plugins docs .gitignore .gitattributes
-git commit -m "Initialize FutureWorld UE5 project"
+git add FW.uproject Source Config Content Plugins docs .gitignore .gitattributes
+git commit -m "Initialize FW UE5 project"
 ```
 
 ## 6. Daily Development Workflow
@@ -192,8 +192,8 @@ Unreal binary assets cannot be merged like text files. To reduce conflicts:
 When the team grows, consider Git LFS file locking for high-conflict assets:
 
 ```powershell
-git lfs lock Content/FutureWorld/Maps/OpenWorld/L_Main.umap
-git lfs unlock Content/FutureWorld/Maps/OpenWorld/L_Main.umap
+git lfs lock Content/FW/Maps/OpenWorld/L_Main.umap
+git lfs unlock Content/FW/Maps/OpenWorld/L_Main.umap
 ```
 
 ## 10. Release Tags
@@ -241,4 +241,3 @@ Immediate next steps:
 4. Commit `.gitignore`, `.gitattributes`, and this workflow document.
 5. Push `main` to GitHub.
 6. Create the first feature branch for UE5 project setup.
-

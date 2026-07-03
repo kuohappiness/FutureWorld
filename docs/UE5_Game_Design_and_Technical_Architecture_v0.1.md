@@ -122,7 +122,7 @@
 ## 4. UE5 高階架構
 
 ```text
-FutureWorld
+FW
 ├─ Core
 │  ├─ GameInstance
 │  ├─ GameMode
@@ -1201,16 +1201,16 @@ Data Asset 可以：
 資料夾命名：
 
 ```text
-Source/FutureWorld/Core
-Source/FutureWorld/Characters
-Source/FutureWorld/Actions
-Source/FutureWorld/Vehicles
-Source/FutureWorld/Weapons
-Source/FutureWorld/Combat
-Source/FutureWorld/AI
-Source/FutureWorld/World
-Source/FutureWorld/Rules
-Source/FutureWorld/UI
+Source/FW/Core
+Source/FW/Characters
+Source/FW/Actions
+Source/FW/Vehicles
+Source/FW/Weapons
+Source/FW/Combat
+Source/FW/AI
+Source/FW/World
+Source/FW/Rules
+Source/FW/UI
 ```
 
 ## 22. 開發路線

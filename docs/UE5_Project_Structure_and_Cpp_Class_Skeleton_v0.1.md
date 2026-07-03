@@ -8,9 +8,13 @@
 
 ## 2. 建議專案基本資訊
 
-專案名稱：
+專案顯示名稱：
 
-- `FutureWorld`
+- `Future World`
+
+專案縮寫：
+
+- `FW`
 
 C++ 類別前綴：
 
@@ -18,7 +22,7 @@ C++ 類別前綴：
 
 主要模組名稱：
 
-- `FutureWorld`
+- `FW`
 
 建議建立方式：
 
@@ -61,10 +65,10 @@ C++ 類別前綴：
 
 ```text
 Source/
-└─ FutureWorld/
-   ├─ FutureWorld.Build.cs
-   ├─ FutureWorld.cpp
-   ├─ FutureWorld.h
+└─ FW/
+   ├─ FW.Build.cs
+   ├─ FW.cpp
+   ├─ FW.h
    │
    ├─ Core/
    │  ├─ FWGameInstance.h
@@ -148,7 +152,7 @@ Source/
 
 ```text
 Content/
-├─ FutureWorld/
+├─ FW/
 │  ├─ Characters/
 │  │  ├─ Blueprints/
 │  │  ├─ Meshes/
@@ -245,15 +249,15 @@ PublicDependencyModuleNames.AddRange(new string[]
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API UFWGameInstance : public UGameInstance
+class FW_API UFWGameInstance : public UGameInstance
 {
     GENERATED_BODY()
 
 public:
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FutureWorld|Rules")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FW|Rules")
     TObjectPtr<class UFWMatchRuleSet> SelectedRuleSet;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FutureWorld|Loadout")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FW|Loadout")
     TObjectPtr<class UFWWeaponLoadout> SelectedLoadout;
 };
 ```
@@ -272,21 +276,21 @@ public:
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API AFWCompetitiveGameMode : public AGameModeBase
+class FW_API AFWCompetitiveGameMode : public AGameModeBase
 {
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Match")
+    UFUNCTION(BlueprintCallable, Category="FW|Match")
     void StartMatchFlow();
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Match")
+    UFUNCTION(BlueprintCallable, Category="FW|Match")
     void EndMatchFlow();
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Respawn")
+    UFUNCTION(BlueprintCallable, Category="FW|Respawn")
     void RequestRespawn(AController* Controller);
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Vehicles")
+    UFUNCTION(BlueprintCallable, Category="FW|Vehicles")
     void HandleCoreVehicleDestroyed(AController* OwnerController);
 };
 ```
@@ -305,18 +309,18 @@ public:
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API AFWPlayerState : public APlayerState
+class FW_API AFWPlayerState : public APlayerState
 {
     GENERATED_BODY()
 
 public:
-    UPROPERTY(BlueprintReadOnly, Replicated, Category="FutureWorld|Match")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category="FW|Match")
     int32 Lives = 3;
 
-    UPROPERTY(BlueprintReadOnly, Replicated, Category="FutureWorld|Team")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category="FW|Team")
     int32 TeamId = 0;
 
-    UPROPERTY(BlueprintReadOnly, Replicated, Category="FutureWorld|Vehicle")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category="FW|Vehicle")
     TObjectPtr<class AFWVehicleBase> CoreVehicle;
 };
 ```
@@ -333,7 +337,7 @@ public:
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API AFWCharacterBase : public ACharacter
+class FW_API AFWCharacterBase : public ACharacter
 {
     GENERATED_BODY()
 
@@ -341,16 +345,16 @@ public:
     AFWCharacterBase();
 
 protected:
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FutureWorld|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FW|Components")
     TObjectPtr<class UFWHealthComponent> HealthComponent;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FutureWorld|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FW|Components")
     TObjectPtr<class UFWTeamComponent> TeamComponent;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FutureWorld|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FW|Components")
     TObjectPtr<class UFWActionComponent> ActionComponent;
 
-    UPROPERTY(BlueprintReadOnly, Category="FutureWorld|Weapon")
+    UPROPERTY(BlueprintReadOnly, Category="FW|Weapon")
     TObjectPtr<class AFWWeaponBase> CurrentWeapon;
 };
 ```
@@ -366,7 +370,7 @@ protected:
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API AFWPlayerCharacter : public AFWCharacterBase
+class FW_API AFWPlayerCharacter : public AFWCharacterBase
 {
     GENERATED_BODY()
 
@@ -409,18 +413,18 @@ protected:
 
 ```cpp
 UCLASS(Blueprintable, Abstract)
-class FUTUREWORLD_API UFWActionBase : public UObject
+class FW_API UFWActionBase : public UObject
 {
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintNativeEvent, Category="FutureWorld|Action")
+    UFUNCTION(BlueprintNativeEvent, Category="FW|Action")
     bool CanStartAction(AActor* InstigatorActor) const;
 
-    UFUNCTION(BlueprintNativeEvent, Category="FutureWorld|Action")
+    UFUNCTION(BlueprintNativeEvent, Category="FW|Action")
     void StartAction(AActor* InstigatorActor);
 
-    UFUNCTION(BlueprintNativeEvent, Category="FutureWorld|Action")
+    UFUNCTION(BlueprintNativeEvent, Category="FW|Action")
     void StopAction(AActor* InstigatorActor);
 };
 ```
@@ -428,20 +432,20 @@ public:
 ### 8.3 `UFWActionComponent`
 
 ```cpp
-UCLASS(ClassGroup=(FutureWorld), meta=(BlueprintSpawnableComponent))
-class FUTUREWORLD_API UFWActionComponent : public UActorComponent
+UCLASS(ClassGroup=(FW), meta=(BlueprintSpawnableComponent))
+class FW_API UFWActionComponent : public UActorComponent
 {
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Action")
+    UFUNCTION(BlueprintCallable, Category="FW|Action")
     bool TryStartActionByName(FName ActionName);
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Action")
+    UFUNCTION(BlueprintCallable, Category="FW|Action")
     void StopActionByName(FName ActionName);
 
 protected:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Action")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Action")
     TMap<FName, TSubclassOf<UFWActionBase>> AvailableActions;
 };
 ```
@@ -462,36 +466,36 @@ protected:
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API AFWVehicleBase : public APawn
+class FW_API AFWVehicleBase : public APawn
 {
     GENERATED_BODY()
 
 public:
     AFWVehicleBase();
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Vehicle")
+    UFUNCTION(BlueprintCallable, Category="FW|Vehicle")
     bool CanEnterVehicle(AController* Controller) const;
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Vehicle")
+    UFUNCTION(BlueprintCallable, Category="FW|Vehicle")
     bool EnterVehicle(AController* Controller);
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Vehicle")
+    UFUNCTION(BlueprintCallable, Category="FW|Vehicle")
     bool ExitVehicle(AController* Controller);
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Vehicle")
+    UFUNCTION(BlueprintCallable, Category="FW|Vehicle")
     void HandleVehicleDestroyed();
 
 protected:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Vehicle")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Vehicle")
     TObjectPtr<class UFWVehicleData> VehicleData;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FutureWorld|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FW|Components")
     TObjectPtr<class UFWHealthComponent> HealthComponent;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FutureWorld|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FW|Components")
     TArray<TObjectPtr<class UFWVehicleSeatComponent>> Seats;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FutureWorld|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="FW|Components")
     TArray<TObjectPtr<class UFWVehicleWeaponMountComponent>> WeaponMounts;
 };
 ```
@@ -500,27 +504,27 @@ protected:
 
 ```cpp
 UCLASS(BlueprintType)
-class FUTUREWORLD_API UFWVehicleData : public UPrimaryDataAsset
+class FW_API UFWVehicleData : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 
 public:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Vehicle")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Vehicle")
     FName VehicleId;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Vehicle")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Vehicle")
     FText DisplayName;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     float MaxHealth = 1000.0f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     float Armor = 0.0f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     float MaxSpeed = 1200.0f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     int32 SeatCount = 1;
 };
 ```
@@ -539,30 +543,30 @@ public:
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API AFWWeaponBase : public AActor
+class FW_API AFWWeaponBase : public AActor
 {
     GENERATED_BODY()
 
 public:
     AFWWeaponBase();
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Weapon")
+    UFUNCTION(BlueprintCallable, Category="FW|Weapon")
     virtual void Equip(AActor* NewOwner);
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Weapon")
+    UFUNCTION(BlueprintCallable, Category="FW|Weapon")
     virtual void Unequip();
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Weapon")
+    UFUNCTION(BlueprintCallable, Category="FW|Weapon")
     virtual void StartFire();
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Weapon")
+    UFUNCTION(BlueprintCallable, Category="FW|Weapon")
     virtual void StopFire();
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Weapon")
+    UFUNCTION(BlueprintCallable, Category="FW|Weapon")
     virtual void Reload();
 
 protected:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Weapon")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Weapon")
     TObjectPtr<class UFWWeaponData> WeaponData;
 };
 ```
@@ -581,33 +585,33 @@ enum class EFWWeaponType : uint8
 };
 
 UCLASS(BlueprintType)
-class FUTUREWORLD_API UFWWeaponData : public UPrimaryDataAsset
+class FW_API UFWWeaponData : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 
 public:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Weapon")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Weapon")
     FName WeaponId;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Weapon")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Weapon")
     FText DisplayName;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Weapon")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Weapon")
     EFWWeaponType WeaponType = EFWWeaponType::Pistol;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     float BaseDamage = 10.0f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     float VehicleDamageMultiplier = 1.0f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     float FireRate = 3.0f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     int32 MagazineSize = 12;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Stats")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Stats")
     float ReloadTime = 1.5f;
 };
 ```
@@ -616,18 +620,18 @@ public:
 
 ```cpp
 UCLASS(BlueprintType)
-class FUTUREWORLD_API UFWWeaponLoadout : public UPrimaryDataAsset
+class FW_API UFWWeaponLoadout : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 
 public:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Loadout")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Loadout")
     TObjectPtr<UFWWeaponData> PrimaryWeapon;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Loadout")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Loadout")
     TObjectPtr<UFWWeaponData> SecondaryWeapon;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Loadout")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Loadout")
     TArray<TObjectPtr<class UFWWeaponModuleData>> EquippedModules;
 };
 ```
@@ -647,31 +651,31 @@ public:
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFWDeath);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFWHealthChanged, float, CurrentHealth, float, MaxHealth);
 
-UCLASS(ClassGroup=(FutureWorld), meta=(BlueprintSpawnableComponent))
-class FUTUREWORLD_API UFWHealthComponent : public UActorComponent
+UCLASS(ClassGroup=(FW), meta=(BlueprintSpawnableComponent))
+class FW_API UFWHealthComponent : public UActorComponent
 {
     GENERATED_BODY()
 
 public:
     UFWHealthComponent();
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Health")
+    UFUNCTION(BlueprintCallable, Category="FW|Health")
     void ApplyDamage(float DamageAmount, AActor* DamageInstigator);
 
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|Health")
+    UFUNCTION(BlueprintCallable, Category="FW|Health")
     bool IsDead() const;
 
-    UPROPERTY(BlueprintAssignable, Category="FutureWorld|Health")
+    UPROPERTY(BlueprintAssignable, Category="FW|Health")
     FOnFWDeath OnDeath;
 
-    UPROPERTY(BlueprintAssignable, Category="FutureWorld|Health")
+    UPROPERTY(BlueprintAssignable, Category="FW|Health")
     FOnFWHealthChanged OnHealthChanged;
 
 protected:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Health")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Health")
     float MaxHealth = 100.0f;
 
-    UPROPERTY(BlueprintReadOnly, Category="FutureWorld|Health")
+    UPROPERTY(BlueprintReadOnly, Category="FW|Health")
     float CurrentHealth = 100.0f;
 };
 ```
@@ -685,17 +689,17 @@ protected:
 - 支援載具部位破壞
 
 ```cpp
-UCLASS(ClassGroup=(FutureWorld), meta=(BlueprintSpawnableComponent))
-class FUTUREWORLD_API UFWHitZoneComponent : public UActorComponent
+UCLASS(ClassGroup=(FW), meta=(BlueprintSpawnableComponent))
+class FW_API UFWHitZoneComponent : public UActorComponent
 {
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category="FutureWorld|HitZone")
+    UFUNCTION(BlueprintCallable, Category="FW|HitZone")
     float GetDamageMultiplier(FName HitZoneName) const;
 
 protected:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|HitZone")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|HitZone")
     TMap<FName, float> DamageMultipliers;
 };
 ```
@@ -716,30 +720,30 @@ enum class EFWCoreVehiclePenalty : uint8
 };
 
 UCLASS(BlueprintType)
-class FUTUREWORLD_API UFWMatchRuleSet : public UPrimaryDataAsset
+class FW_API UFWMatchRuleSet : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 
 public:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Rules")
     int32 AIEnemyCount = 5;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Rules")
     int32 PlayerLives = 3;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Rules")
     bool bRespawnEnabled = true;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Rules")
     float RespawnDelay = 5.0f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Rules")
     bool bCoreVehicleEnabled = true;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Rules")
     EFWCoreVehiclePenalty CoreVehiclePenalty = EFWCoreVehiclePenalty::LoseLife;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|Rules")
     bool bVehicleStealingEnabled = true;
 };
 ```
@@ -757,7 +761,7 @@ public:
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API AFWEnemyAIController : public AAIController
+class FW_API AFWEnemyAIController : public AAIController
 {
     GENERATED_BODY()
 
@@ -765,10 +769,10 @@ public:
     virtual void OnPossess(APawn* InPawn) override;
 
 protected:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|AI")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|AI")
     TObjectPtr<class UBehaviorTree> BehaviorTree;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|AI")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|AI")
     TObjectPtr<class UFWAIDifficultyProfile> DifficultyProfile;
 };
 ```
@@ -777,24 +781,24 @@ protected:
 
 ```cpp
 UCLASS(BlueprintType)
-class FUTUREWORLD_API UFWAIDifficultyProfile : public UPrimaryDataAsset
+class FW_API UFWAIDifficultyProfile : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 
 public:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|AI")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|AI")
     float ReactionTime = 0.8f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|AI")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|AI")
     float Accuracy = 0.5f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|AI")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|AI")
     float VehicleUsageChance = 0.35f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|AI")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|AI")
     float WeakPointTargetChance = 0.15f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FutureWorld|AI")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="FW|AI")
     float CoverUsageChance = 0.4f;
 };
 ```
@@ -810,23 +814,23 @@ public:
 
 ```cpp
 UINTERFACE(BlueprintType)
-class FUTUREWORLD_API UFWInteractable : public UInterface
+class FW_API UFWInteractable : public UInterface
 {
     GENERATED_BODY()
 };
 
-class FUTUREWORLD_API IFWInteractable
+class FW_API IFWInteractable
 {
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="FutureWorld|Interaction")
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="FW|Interaction")
     bool CanInteract(AActor* Interactor) const;
 
-    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="FutureWorld|Interaction")
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="FW|Interaction")
     FText GetInteractionText(AActor* Interactor) const;
 
-    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="FutureWorld|Interaction")
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="FW|Interaction")
     void Interact(AActor* Interactor);
 };
 ```
@@ -835,15 +839,15 @@ public:
 
 ```cpp
 UCLASS()
-class FUTUREWORLD_API AFWSpawnPoint : public AActor
+class FW_API AFWSpawnPoint : public AActor
 {
     GENERATED_BODY()
 
 public:
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="FutureWorld|Spawn")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="FW|Spawn")
     FName SpawnTag;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="FutureWorld|Spawn")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="FW|Spawn")
     int32 TeamId = 0;
 };
 ```
@@ -1055,4 +1059,3 @@ AI 先能完成：
 - Phase 4 AI
 - Phase 5 規則與 UI
 - Phase 6 第一個可玩版本驗收
-
