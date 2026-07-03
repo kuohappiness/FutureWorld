@@ -1,0 +1,55 @@
+# Unreal Engine generated files
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+.vscode/
+*.VC.db
+*.opensdf
+*.opendb
+*.sdf
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Unreal local project files
+*.tmp
+*.log
+*.cache
+*.ilk
+*.pdb
+
+# Keep source, config, plugins, docs, and project descriptors versioned.
+!Source/
+!Config/
+!Plugins/
+!Content/
+!docs/
+!*.uproject
+
+# Visual Studio / Rider / JetBrains
+.idea/
+*.DotSettings.user
+_ReSharper*/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Packaged builds and archives
+PackagedBuilds/
+Releases/
+StagedBuilds/
+*.zip
+*.7z
+*.rar
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
