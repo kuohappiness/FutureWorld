@@ -2,7 +2,7 @@
 
 ## 1. 文件目的
 
-本文件是 `UE5_Architecture_Enhancement_v0.2.md` 之後的最後一層架構補強。
+本文件是 `FW_Architecture_Enhancement_v0.2.md` 之後的最後一層架構補強。
 
 v0.1 定義遊戲與技術方向，v0.2 補上事件、資料管理、多人物件權威、Debug、狀態機等橫向系統。v0.3 的目標是讓專案具備長期量產、版本更新、測試、自動化、資料安全、調參與維護能力。
 
@@ -495,7 +495,7 @@ MVP 先在命名與流程上預留：
 
 下一步應建立：
 
-- `UE5_MVP_Implementation_Tasks_v0.2.md`
+- `FW_MVP_Implementation_Tasks_v0.2.md`
 
 每個任務應包含：
 

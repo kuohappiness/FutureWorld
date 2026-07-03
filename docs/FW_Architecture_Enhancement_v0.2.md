@@ -2,7 +2,7 @@
 
 ## 1. 文件目的
 
-本文件是 `UE5_Game_Design_and_Technical_Architecture_v0.1.md` 與 `UE5_Project_Structure_and_Cpp_Class_Skeleton_v0.1.md` 的補強版。
+本文件是 `FW_Game_Design_and_Technical_Architecture_v0.1.md` 與 `FW_Project_Structure_and_Cpp_Class_Skeleton_v0.1.md` 的補強版。
 
 v0.1 已經足夠進入原型開發，但若目標是長期擴充成開放世界、載具戰鬥、多人連線、分割螢幕、武器改裝、天氣系統與多遊戲模式，還需要補上幾個橫向底層系統。
 
@@ -1040,7 +1040,7 @@ v0.1 的 MVP 順序仍然有效，但建議加入以下底層任務。
 
 下一份文件建議建立：
 
-- `UE5_MVP_Implementation_Tasks_v0.2.md`
+- `FW_MVP_Implementation_Tasks_v0.2.md`
 
 內容應把 v0.1 與 v0.2 整合成可執行任務：
 
