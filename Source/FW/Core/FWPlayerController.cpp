@@ -29,6 +29,7 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "HAL/PlatformTime.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/FileHelper.h"
 #include "UnrealClient.h"
 
@@ -63,6 +64,7 @@ void AFWPlayerController::BeginPlay()
 	StartAIEvidenceSequence();
 	StartDebugEvidenceSequence();
 	StartUIActionSafetyEvidenceSequence();
+	StartPerformanceSmokeEvidenceSequence();
 }
 
 void AFWPlayerController::Tick(float DeltaSeconds)
@@ -75,6 +77,7 @@ void AFWPlayerController::Tick(float DeltaSeconds)
 	TickAIEvidenceSequence();
 	TickDebugEvidenceSequence();
 	TickUIActionSafetyEvidenceSequence();
+	TickPerformanceSmokeEvidenceSequence(DeltaSeconds);
 
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	if ((Now - LastHUDRefreshTime) >= HUDRefreshInterval)
@@ -1669,6 +1672,149 @@ void AFWPlayerController::WriteUIActionSafetyEvidenceState(const FString& StepSu
 
 	FFileHelper::SaveStringToFile(Line, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
 	UE_LOG(LogTemp, Display, TEXT("FW UI action safety wrote state evidence: %s step=%s"), *EvidencePath, *StepSuffix);
+}
+
+void AFWPlayerController::StartPerformanceSmokeEvidenceSequence()
+{
+	if (!GetWorld() || !IsLocalPlayerController())
+	{
+		return;
+	}
+
+	if (!FParse::Param(FCommandLine::Get(), TEXT("FWPIEPerformanceSmokeEvidence")))
+	{
+		return;
+	}
+
+	bPerformanceSmokeEvidenceActive = true;
+	bPerformanceSmokeSampling = false;
+	PerformanceSmokeEvidenceStartTime = GetWorld()->GetTimeSeconds();
+	PerformanceSmokeSamplingStartTime = 0.0;
+	PerformanceSmokeFrameCount = 0;
+	PerformanceSmokeHitchFrameCount = 0;
+	PerformanceSmokeDeltaSum = 0.0f;
+	PerformanceSmokeMaxDelta = 0.0f;
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEPerformanceSmokeEvidenceFolder="), PerformanceSmokeEvidenceFolder);
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEPerformanceSmokeEvidencePrefix="), PerformanceSmokeEvidencePrefix);
+	if (IConsoleVariable* IdleWhenNotForeground = IConsoleManager::Get().FindConsoleVariable(TEXT("t.IdleWhenNotForeground")))
+	{
+		IdleWhenNotForeground->Set(0, ECVF_SetByCode);
+	}
+	if (IConsoleVariable* MaxFPS = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS")))
+	{
+		MaxFPS->Set(60.0f, ECVF_SetByCode);
+	}
+
+	if (!PerformanceSmokeEvidenceFolder.IsEmpty())
+	{
+		const FString EvidencePath = FPaths::Combine(FPaths::ConvertRelativePathToFull(PerformanceSmokeEvidenceFolder), FString::Printf(TEXT("%s_state-evidence.jsonl"), *PerformanceSmokeEvidencePrefix));
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(EvidencePath), true);
+		const FString Header = FString::Printf(TEXT("{\"event\":\"PIE performance smoke evidence start\",\"prefix\":\"%s\",\"worldType\":%d,\"warmupSeconds\":%.2f,\"sampleSeconds\":%.2f,\"severeHitchThresholdSeconds\":%.2f,\"backgroundIdleDisabled\":true,\"targetMaxFPS\":60}\n"), *FWJsonEscape(PerformanceSmokeEvidencePrefix), static_cast<int32>(GetWorld()->WorldType), 25.0f, 10.0f, 0.50f);
+		FFileHelper::SaveStringToFile(Header, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
+
+	LastCombatDebugText = TEXT("Performance smoke evidence warmup started");
+	ForceRefreshHUD();
+	WritePerformanceSmokeEvidenceState(TEXT("00-warmup-start"), TEXT("warmup-start"));
+	UE_LOG(LogTemp, Display, TEXT("FW performance smoke evidence sequence started. WorldType=%d"), static_cast<int32>(GetWorld()->WorldType));
+}
+
+void AFWPlayerController::TickPerformanceSmokeEvidenceSequence(float DeltaSeconds)
+{
+	if (!bPerformanceSmokeEvidenceActive || !GetWorld())
+	{
+		return;
+	}
+
+	constexpr float WarmupSeconds = 25.0f;
+	constexpr float SampleSeconds = 10.0f;
+	constexpr float SevereHitchThresholdSeconds = 0.50f;
+	const double ElapsedSeconds = GetWorld()->GetTimeSeconds() - PerformanceSmokeEvidenceStartTime;
+	if (!bPerformanceSmokeSampling)
+	{
+		if (ElapsedSeconds < WarmupSeconds)
+		{
+			return;
+		}
+
+		bPerformanceSmokeSampling = true;
+		PerformanceSmokeSamplingStartTime = GetWorld()->GetTimeSeconds();
+		PerformanceSmokeFrameCount = 0;
+		PerformanceSmokeHitchFrameCount = 0;
+		PerformanceSmokeDeltaSum = 0.0f;
+		PerformanceSmokeMaxDelta = 0.0f;
+		LastCombatDebugText = TEXT("Performance smoke evidence sampling default loop");
+		ForceRefreshHUD();
+		WritePerformanceSmokeEvidenceState(TEXT("01-sampling-start"), TEXT("sampling-start"));
+	}
+
+	++PerformanceSmokeFrameCount;
+	PerformanceSmokeDeltaSum += DeltaSeconds;
+	PerformanceSmokeMaxDelta = FMath::Max(PerformanceSmokeMaxDelta, DeltaSeconds);
+	if (DeltaSeconds >= SevereHitchThresholdSeconds)
+	{
+		++PerformanceSmokeHitchFrameCount;
+	}
+
+	const double SamplingElapsedSeconds = GetWorld()->GetTimeSeconds() - PerformanceSmokeSamplingStartTime;
+	if (SamplingElapsedSeconds >= SampleSeconds)
+	{
+		FinishPerformanceSmokeEvidenceSequence();
+	}
+}
+
+void AFWPlayerController::FinishPerformanceSmokeEvidenceSequence()
+{
+	if (!bPerformanceSmokeEvidenceActive)
+	{
+		return;
+	}
+
+	LastCombatDebugText = TEXT("Performance smoke evidence sampled default loop");
+	ForceRefreshHUD();
+	WritePerformanceSmokeEvidenceState(TEXT("02-sampling-complete"), TEXT("sampling-complete"));
+	bPerformanceSmokeEvidenceActive = false;
+	bPerformanceSmokeSampling = false;
+}
+
+void AFWPlayerController::WritePerformanceSmokeEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const
+{
+	if (PerformanceSmokeEvidenceFolder.IsEmpty())
+	{
+		return;
+	}
+
+	const FFWHUDStateSnapshot Snapshot = BuildHUDStateSnapshot();
+	const float AverageDeltaSeconds = PerformanceSmokeFrameCount > 0 ? PerformanceSmokeDeltaSum / static_cast<float>(PerformanceSmokeFrameCount) : 0.0f;
+	const float SampleElapsedSeconds = bPerformanceSmokeSampling && GetWorld() ? static_cast<float>(GetWorld()->GetTimeSeconds() - PerformanceSmokeSamplingStartTime) : 0.0f;
+	const bool bNoSevereResponsivenessIssue = PerformanceSmokeFrameCount > 0 && SampleElapsedSeconds >= 8.0f && PerformanceSmokeMaxDelta <= 0.50f && PerformanceSmokeHitchFrameCount == 0;
+	const FString AbsoluteFolder = FPaths::ConvertRelativePathToFull(PerformanceSmokeEvidenceFolder);
+	IFileManager::Get().MakeDirectory(*AbsoluteFolder, true);
+	const FString EvidencePath = FPaths::Combine(AbsoluteFolder, FString::Printf(TEXT("%s_state-evidence.jsonl"), *PerformanceSmokeEvidencePrefix));
+	const FString Line = FString::Printf(
+		TEXT("{\"event\":\"PIE performance smoke evidence step\",\"step\":\"%s\",\"action\":\"%s\",\"sampling\":%s,\"sampleElapsedSeconds\":%.2f,\"frameCount\":%d,\"averageDeltaSeconds\":%.4f,\"maxDeltaSeconds\":%.4f,\"severeHitchThresholdSeconds\":%.2f,\"severeHitchFrameCount\":%d,\"severeResponsivenessIssue\":%s,\"responsive\":%s,\"frameCadenceNote\":\"Frame cadence is diagnostic; PIE-22 gates severe hitches, not a target FPS claim.\",\"hudPlayerHealth\":%.2f,\"hudLives\":%d,\"hudAICount\":%d,\"hudAliveAICount\":%d,\"hudVehicleCount\":%d,\"hudActiveVehicleCount\":%d,\"matchState\":\"%s\",\"lastCombat\":\"%s\"}\n"),
+		*FWJsonEscape(StepSuffix),
+		*FWJsonEscape(ActionLabel),
+		bPerformanceSmokeSampling ? TEXT("true") : TEXT("false"),
+		SampleElapsedSeconds,
+		PerformanceSmokeFrameCount,
+		AverageDeltaSeconds,
+		PerformanceSmokeMaxDelta,
+		0.50f,
+		PerformanceSmokeHitchFrameCount,
+		bNoSevereResponsivenessIssue ? TEXT("false") : TEXT("true"),
+		bNoSevereResponsivenessIssue ? TEXT("true") : TEXT("false"),
+		Snapshot.PlayerHealth,
+		Snapshot.Lives,
+		Snapshot.AICount,
+		Snapshot.AliveAICount,
+		Snapshot.VehicleCount,
+		Snapshot.ActiveVehicleCount,
+		*FWJsonEscape(Snapshot.MatchStateTag.ToString()),
+		*FWJsonEscape(Snapshot.LastCombatDebugText));
+
+	FFileHelper::SaveStringToFile(Line, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+	UE_LOG(LogTemp, Display, TEXT("FW performance smoke wrote state evidence: %s step=%s"), *EvidencePath, *StepSuffix);
 }
 
 void AFWPlayerController::DebugFireNearestAI()

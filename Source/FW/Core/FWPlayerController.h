@@ -99,6 +99,16 @@ private:
 	int32 UIActionSafetyBaselineLives = 0;
 	float UIActionSafetyBaselineCoreVehicleHealth = 0.0f;
 	FString UIActionSafetyBaselineMatchState;
+	bool bPerformanceSmokeEvidenceActive = false;
+	bool bPerformanceSmokeSampling = false;
+	double PerformanceSmokeEvidenceStartTime = 0.0;
+	double PerformanceSmokeSamplingStartTime = 0.0;
+	FString PerformanceSmokeEvidenceFolder;
+	FString PerformanceSmokeEvidencePrefix = TEXT("FW_MVP_PIE_PerformanceSmoke");
+	int32 PerformanceSmokeFrameCount = 0;
+	int32 PerformanceSmokeHitchFrameCount = 0;
+	float PerformanceSmokeDeltaSum = 0.0f;
+	float PerformanceSmokeMaxDelta = 0.0f;
 
 	void CreateHUDWidget();
 	void RefreshHUDWidget();
@@ -139,6 +149,10 @@ private:
 	void AdvanceUIActionSafetyEvidenceSequence();
 	void TickUIActionSafetyEvidenceSequence();
 	void WriteUIActionSafetyEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
+	void StartPerformanceSmokeEvidenceSequence();
+	void TickPerformanceSmokeEvidenceSequence(float DeltaSeconds);
+	void FinishPerformanceSmokeEvidenceSequence();
+	void WritePerformanceSmokeEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
 
 	UFUNCTION()
 	void HandleVehicleDestructionEvidenceDestroyed(AFWVehicleBase* Vehicle);

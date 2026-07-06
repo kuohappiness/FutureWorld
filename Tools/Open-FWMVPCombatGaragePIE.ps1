@@ -21,6 +21,8 @@ param(
     [string]$DebugPresentationEvidencePrefix = ("FW_MVP_PIE_Debug_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [string]$UIActionSafetyEvidenceFolder,
     [string]$UIActionSafetyEvidencePrefix = ("FW_MVP_PIE_UIActionSafety_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
+    [string]$PerformanceSmokeEvidenceFolder,
+    [string]$PerformanceSmokeEvidencePrefix = ("FW_MVP_PIE_PerformanceSmoke_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [switch]$StartPIE,
     [switch]$VehicleInteractionEvidence,
     [switch]$VehicleDriveEvidence,
@@ -29,6 +31,7 @@ param(
     [switch]$AIPresentationEvidence,
     [switch]$DebugPresentationEvidence,
     [switch]$UIActionSafetyEvidence,
+    [switch]$PerformanceSmokeEvidence,
     [switch]$NoLogWindow,
     [switch]$EnableLiveCoding,
     [switch]$DryRun
@@ -158,6 +161,20 @@ if ($UIActionSafetyEvidence) {
     }
 }
 
+if ($PerformanceSmokeEvidence) {
+    $arguments += "-FWPIEPerformanceSmokeEvidence"
+    if (-not $PerformanceSmokeEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
+        $reportText = Get-Content -Raw $ReportPath
+        if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
+            $PerformanceSmokeEvidenceFolder = $Matches[1].Trim()
+        }
+    }
+    if ($PerformanceSmokeEvidenceFolder -and $PerformanceSmokeEvidenceFolder -ne "TBD") {
+        $arguments += "-FWPIEPerformanceSmokeEvidenceFolder=`"$PerformanceSmokeEvidenceFolder`""
+        $arguments += "-FWPIEPerformanceSmokeEvidencePrefix=`"$PerformanceSmokeEvidencePrefix`""
+    }
+}
+
 if ($EnableLiveCoding) {
     $arguments = $arguments | Where-Object { $_ -ne "-NoLiveCoding" }
 }
@@ -190,6 +207,9 @@ if ($DryRun) {
     Write-Host "UI action safety evidence: $([bool]$UIActionSafetyEvidence)"
     Write-Host "UI action safety evidence folder: $UIActionSafetyEvidenceFolder"
     Write-Host "UI action safety evidence prefix: $UIActionSafetyEvidencePrefix"
+    Write-Host "Performance smoke evidence: $([bool]$PerformanceSmokeEvidence)"
+    Write-Host "Performance smoke evidence folder: $PerformanceSmokeEvidenceFolder"
+    Write-Host "Performance smoke evidence prefix: $PerformanceSmokeEvidencePrefix"
     Write-Host "Log window: $(-not [bool]$NoLogWindow)"
     Write-Host "Command: `"$editor`" $($arguments -join ' ')"
     exit 0
