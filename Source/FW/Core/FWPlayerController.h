@@ -66,6 +66,7 @@ private:
 	FString VehicleDestructionEvidencePrefix = TEXT("FW_MVP_PIE_VehicleDestruction");
 	FString VehicleDestructionEvidenceTarget = TEXT("Car");
 	TObjectPtr<AFWVehicleBase> VehicleDestructionEvidenceTargetActor;
+	bool bVehicleDestructionEvidenceEndMatch = false;
 	int32 VehicleDestructionEvidenceDelegateCount = 0;
 	int32 VehicleDestructionEvidenceGameplayEventCount = 0;
 	int32 VehicleDestructionEvidenceRespawnEventCount = 0;

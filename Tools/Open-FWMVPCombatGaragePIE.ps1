@@ -19,6 +19,7 @@ param(
     [switch]$VehicleInteractionEvidence,
     [switch]$VehicleDriveEvidence,
     [switch]$VehicleDestructionEvidence,
+    [switch]$VehicleDestructionEndMatchEvidence,
     [switch]$NoLogWindow,
     [switch]$EnableLiveCoding,
     [switch]$DryRun
@@ -91,6 +92,9 @@ if ($VehicleDriveEvidence) {
 if ($VehicleDestructionEvidence) {
     $arguments += "-FWPIEVehicleDestructionEvidence"
     $arguments += "-FWPIEVehicleDestructionTarget=$VehicleDestructionTarget"
+    if ($VehicleDestructionEndMatchEvidence) {
+        $arguments += "-FWPIEVehicleDestructionEndMatchEvidence"
+    }
     if (-not $VehicleDestructionEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
         $reportText = Get-Content -Raw $ReportPath
         if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
@@ -122,6 +126,7 @@ if ($DryRun) {
     Write-Host "Vehicle drive evidence folder: $VehicleDriveEvidenceFolder"
     Write-Host "Vehicle drive evidence prefix: $VehicleDriveEvidencePrefix"
     Write-Host "Vehicle destruction evidence: $([bool]$VehicleDestructionEvidence)"
+    Write-Host "Vehicle destruction end-match evidence: $([bool]$VehicleDestructionEndMatchEvidence)"
     Write-Host "Vehicle destruction target: $VehicleDestructionTarget"
     Write-Host "Vehicle destruction evidence folder: $VehicleDestructionEvidenceFolder"
     Write-Host "Vehicle destruction evidence prefix: $VehicleDestructionEvidencePrefix"
