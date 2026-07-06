@@ -62,6 +62,7 @@ void AFWPlayerController::BeginPlay()
 	StartVehicleDestructionEvidenceSequence();
 	StartAIEvidenceSequence();
 	StartDebugEvidenceSequence();
+	StartUIActionSafetyEvidenceSequence();
 }
 
 void AFWPlayerController::Tick(float DeltaSeconds)
@@ -73,6 +74,7 @@ void AFWPlayerController::Tick(float DeltaSeconds)
 	TickVehicleDestructionEvidenceSequence();
 	TickAIEvidenceSequence();
 	TickDebugEvidenceSequence();
+	TickUIActionSafetyEvidenceSequence();
 
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	if ((Now - LastHUDRefreshTime) >= HUDRefreshInterval)
@@ -1494,6 +1496,179 @@ AActor* AFWPlayerController::FindDebugEvidenceActor() const
 	}
 
 	return FindNearestVehicle();
+}
+
+void AFWPlayerController::StartUIActionSafetyEvidenceSequence()
+{
+	if (!GetWorld() || !IsLocalPlayerController())
+	{
+		return;
+	}
+
+	if (!FParse::Param(FCommandLine::Get(), TEXT("FWPIEUIActionSafetyEvidence")))
+	{
+		return;
+	}
+
+	UIActionSafetyEvidenceStep = 0;
+	bUIActionSafetyEvidenceActive = true;
+	UIActionSafetyEvidenceStartTime = GetWorld()->GetTimeSeconds();
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEUIActionSafetyEvidenceFolder="), UIActionSafetyEvidenceFolder);
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEUIActionSafetyEvidencePrefix="), UIActionSafetyEvidencePrefix);
+
+	if (!UIActionSafetyEvidenceFolder.IsEmpty())
+	{
+		const FString EvidencePath = FPaths::Combine(FPaths::ConvertRelativePathToFull(UIActionSafetyEvidenceFolder), FString::Printf(TEXT("%s_state-evidence.jsonl"), *UIActionSafetyEvidencePrefix));
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(EvidencePath), true);
+		const FString Header = FString::Printf(TEXT("{\"event\":\"PIE UI action safety evidence start\",\"prefix\":\"%s\",\"worldType\":%d}\n"), *FWJsonEscape(UIActionSafetyEvidencePrefix), static_cast<int32>(GetWorld()->WorldType));
+		FFileHelper::SaveStringToFile(Header, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("FW UI action safety evidence sequence started. WorldType=%d"), static_cast<int32>(GetWorld()->WorldType));
+	UIActionSafetyEvidenceTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float DeltaTime)
+	{
+		TickUIActionSafetyEvidenceSequence();
+		return bUIActionSafetyEvidenceActive;
+	}));
+}
+
+void AFWPlayerController::AdvanceUIActionSafetyEvidenceSequence()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	UFWDebugSubsystem* DebugSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFWDebugSubsystem>() : nullptr;
+	++UIActionSafetyEvidenceStep;
+	if (UIActionSafetyEvidenceStep == 1)
+	{
+		if (DebugSubsystem)
+		{
+			DebugSubsystem->ClearRecentEvents();
+		}
+		const FFWHUDStateSnapshot Snapshot = BuildHUDStateSnapshot();
+		UIActionSafetyBaselinePlayerHealth = Snapshot.PlayerHealth;
+		UIActionSafetyBaselineLives = Snapshot.Lives;
+		UIActionSafetyBaselineCoreVehicleHealth = Snapshot.CoreVehicleHealth;
+		UIActionSafetyBaselineMatchState = Snapshot.MatchStateTag.ToString();
+		LastCombatDebugText = TEXT("UI action safety baseline captured");
+		ForceRefreshHUD();
+		WriteUIActionSafetyEvidenceState(TEXT("00-baseline"), TEXT("baseline"));
+	}
+	else if (UIActionSafetyEvidenceStep == 2)
+	{
+		for (int32 RefreshIndex = 0; RefreshIndex < 5; ++RefreshIndex)
+		{
+			ForceRefreshHUD();
+			if (HUDWidget)
+			{
+				HUDWidget->SetHUDState(BuildHUDStateSnapshot());
+			}
+		}
+		LastCombatDebugText = TEXT("UI action safety probed HUD refresh only");
+		ForceRefreshHUD();
+		WriteUIActionSafetyEvidenceState(TEXT("01-hud-refresh-probe"), TEXT("hud-refresh-probe"));
+	}
+	else if (UIActionSafetyEvidenceStep == 3)
+	{
+		ForceRefreshHUD();
+		LastCombatDebugText = TEXT("UI action safety verified no direct gameplay mutation");
+		ForceRefreshHUD();
+		WriteUIActionSafetyEvidenceState(TEXT("02-state-stable"), TEXT("state-stable"));
+		bUIActionSafetyEvidenceActive = false;
+		FTSTicker::GetCoreTicker().RemoveTicker(UIActionSafetyEvidenceTickerHandle);
+	}
+}
+
+void AFWPlayerController::TickUIActionSafetyEvidenceSequence()
+{
+	if (!bUIActionSafetyEvidenceActive || !GetWorld())
+	{
+		return;
+	}
+
+	const double ElapsedSeconds = GetWorld()->GetTimeSeconds() - UIActionSafetyEvidenceStartTime;
+	constexpr double StepTimes[] = { 2.0, 4.0, 6.0 };
+	if (UIActionSafetyEvidenceStep < UE_ARRAY_COUNT(StepTimes) && ElapsedSeconds >= StepTimes[UIActionSafetyEvidenceStep])
+	{
+		AdvanceUIActionSafetyEvidenceSequence();
+	}
+}
+
+void AFWPlayerController::WriteUIActionSafetyEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const
+{
+	if (UIActionSafetyEvidenceFolder.IsEmpty())
+	{
+		return;
+	}
+
+	const FFWHUDStateSnapshot Snapshot = BuildHUDStateSnapshot();
+	const UFWDebugSubsystem* DebugSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFWDebugSubsystem>() : nullptr;
+	const FString MatchState = Snapshot.MatchStateTag.ToString();
+	const bool bPlayerHealthStable = FMath::IsNearlyEqual(Snapshot.PlayerHealth, UIActionSafetyBaselinePlayerHealth);
+	const bool bLivesStable = Snapshot.Lives == UIActionSafetyBaselineLives;
+	const bool bCoreVehicleHealthStable = FMath::IsNearlyEqual(Snapshot.CoreVehicleHealth, UIActionSafetyBaselineCoreVehicleHealth);
+	const bool bMatchStateStable = MatchState == UIActionSafetyBaselineMatchState;
+	const bool bStateStable = bPlayerHealthStable && bLivesStable && bCoreVehicleHealthStable && bMatchStateStable;
+
+	FString RecentEventTags;
+	int32 RecentEventCount = 0;
+	int32 MutationEventCount = 0;
+	if (DebugSubsystem)
+	{
+		static const TSet<FString> MutationTags = {
+			TEXT("Event.Damage.Applied"),
+			TEXT("Event.Vehicle.Destroyed"),
+			TEXT("Event.Vehicle.CoreDestroyed"),
+			TEXT("Event.Respawn.Completed")
+		};
+		const TArray<FFWDebugEventRecord>& RecentEvents = DebugSubsystem->GetRecentEvents();
+		RecentEventCount = RecentEvents.Num();
+		TArray<FString> EventTagStrings;
+		EventTagStrings.Reserve(RecentEvents.Num());
+		for (const FFWDebugEventRecord& Record : RecentEvents)
+		{
+			const FString EventTagString = Record.EventTag.ToString();
+			EventTagStrings.Add(EventTagString);
+			if (MutationTags.Contains(EventTagString))
+			{
+				++MutationEventCount;
+			}
+		}
+		RecentEventTags = FString::Join(EventTagStrings, TEXT("|"));
+	}
+
+	const FString AbsoluteFolder = FPaths::ConvertRelativePathToFull(UIActionSafetyEvidenceFolder);
+	IFileManager::Get().MakeDirectory(*AbsoluteFolder, true);
+	const FString EvidencePath = FPaths::Combine(AbsoluteFolder, FString::Printf(TEXT("%s_state-evidence.jsonl"), *UIActionSafetyEvidencePrefix));
+	const FString Line = FString::Printf(
+		TEXT("{\"event\":\"PIE UI action safety evidence step\",\"step\":\"%s\",\"stepIndex\":%d,\"action\":\"%s\",\"hudWidget\":\"%s\",\"hudWidgetClass\":\"%s\",\"uiProbe\":\"HUD refresh and SetHUDState only\",\"interactiveSlateControls\":0,\"playerHealth\":%.2f,\"baselinePlayerHealth\":%.2f,\"playerHealthStable\":%s,\"lives\":%d,\"baselineLives\":%d,\"livesStable\":%s,\"coreVehicleHealth\":%.2f,\"baselineCoreVehicleHealth\":%.2f,\"coreVehicleHealthStable\":%s,\"matchState\":\"%s\",\"baselineMatchState\":\"%s\",\"matchStateStable\":%s,\"stateStable\":%s,\"recentEventCount\":%d,\"mutationEventCount\":%d,\"recentEventTags\":\"%s\",\"lastCombat\":\"%s\"}\n"),
+		*FWJsonEscape(StepSuffix),
+		UIActionSafetyEvidenceStep,
+		*FWJsonEscape(ActionLabel),
+		*FWJsonEscape(GetNameSafe(HUDWidget.Get())),
+		HUDWidget ? *FWJsonEscape(HUDWidget->GetClass()->GetName()) : TEXT(""),
+		Snapshot.PlayerHealth,
+		UIActionSafetyBaselinePlayerHealth,
+		bPlayerHealthStable ? TEXT("true") : TEXT("false"),
+		Snapshot.Lives,
+		UIActionSafetyBaselineLives,
+		bLivesStable ? TEXT("true") : TEXT("false"),
+		Snapshot.CoreVehicleHealth,
+		UIActionSafetyBaselineCoreVehicleHealth,
+		bCoreVehicleHealthStable ? TEXT("true") : TEXT("false"),
+		*FWJsonEscape(MatchState),
+		*FWJsonEscape(UIActionSafetyBaselineMatchState),
+		bMatchStateStable ? TEXT("true") : TEXT("false"),
+		bStateStable ? TEXT("true") : TEXT("false"),
+		RecentEventCount,
+		MutationEventCount,
+		*FWJsonEscape(RecentEventTags),
+		*FWJsonEscape(Snapshot.LastCombatDebugText));
+
+	FFileHelper::SaveStringToFile(Line, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+	UE_LOG(LogTemp, Display, TEXT("FW UI action safety wrote state evidence: %s step=%s"), *EvidencePath, *StepSuffix);
 }
 
 void AFWPlayerController::DebugFireNearestAI()

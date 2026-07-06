@@ -49,7 +49,7 @@ This report is the final manual PIE evidence record for `L_Test_CombatGarage`. A
 - [x] PIE-18 AI can pursue and attack the player with acceptable pathing/framing for MVP.
 - [x] PIE-19 HUD displays health, lives, current weapon, ammo, and core vehicle health correctly.
 - [x] PIE-20 Debug HUD or debug output exposes core actor state and recent gameplay events.
-- [ ] PIE-21 No UI action directly changes health, lives, vehicle destruction, or match end state.
+- [x] PIE-21 No UI action directly changes health, lives, vehicle destruction, or match end state.
 - [ ] PIE-22 No obvious per-frame log spam or severe responsiveness issue during the default test map loop.
 - [ ] PIE-23 The test map demonstrates the complete MVP loop from spawn through combat, vehicle use, life penalty, respawn, and match end.
 

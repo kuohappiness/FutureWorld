@@ -89,6 +89,16 @@ private:
 	FString DebugEvidenceFolder;
 	FString DebugEvidencePrefix = TEXT("FW_MVP_PIE_Debug");
 	TObjectPtr<AActor> DebugEvidenceActor;
+	int32 UIActionSafetyEvidenceStep = 0;
+	bool bUIActionSafetyEvidenceActive = false;
+	double UIActionSafetyEvidenceStartTime = 0.0;
+	FTSTicker::FDelegateHandle UIActionSafetyEvidenceTickerHandle;
+	FString UIActionSafetyEvidenceFolder;
+	FString UIActionSafetyEvidencePrefix = TEXT("FW_MVP_PIE_UIActionSafety");
+	float UIActionSafetyBaselinePlayerHealth = 0.0f;
+	int32 UIActionSafetyBaselineLives = 0;
+	float UIActionSafetyBaselineCoreVehicleHealth = 0.0f;
+	FString UIActionSafetyBaselineMatchState;
 
 	void CreateHUDWidget();
 	void RefreshHUDWidget();
@@ -125,6 +135,10 @@ private:
 	void TickDebugEvidenceSequence();
 	void WriteDebugEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
 	AActor* FindDebugEvidenceActor() const;
+	void StartUIActionSafetyEvidenceSequence();
+	void AdvanceUIActionSafetyEvidenceSequence();
+	void TickUIActionSafetyEvidenceSequence();
+	void WriteUIActionSafetyEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
 
 	UFUNCTION()
 	void HandleVehicleDestructionEvidenceDestroyed(AFWVehicleBase* Vehicle);

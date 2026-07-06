@@ -19,6 +19,8 @@ param(
     [string]$AIPresentationEvidencePrefix = ("FW_MVP_PIE_AI_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [string]$DebugPresentationEvidenceFolder,
     [string]$DebugPresentationEvidencePrefix = ("FW_MVP_PIE_Debug_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
+    [string]$UIActionSafetyEvidenceFolder,
+    [string]$UIActionSafetyEvidencePrefix = ("FW_MVP_PIE_UIActionSafety_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [switch]$StartPIE,
     [switch]$VehicleInteractionEvidence,
     [switch]$VehicleDriveEvidence,
@@ -26,6 +28,7 @@ param(
     [switch]$VehicleDestructionEndMatchEvidence,
     [switch]$AIPresentationEvidence,
     [switch]$DebugPresentationEvidence,
+    [switch]$UIActionSafetyEvidence,
     [switch]$NoLogWindow,
     [switch]$EnableLiveCoding,
     [switch]$DryRun
@@ -141,6 +144,20 @@ if ($DebugPresentationEvidence) {
     }
 }
 
+if ($UIActionSafetyEvidence) {
+    $arguments += "-FWPIEUIActionSafetyEvidence"
+    if (-not $UIActionSafetyEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
+        $reportText = Get-Content -Raw $ReportPath
+        if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
+            $UIActionSafetyEvidenceFolder = $Matches[1].Trim()
+        }
+    }
+    if ($UIActionSafetyEvidenceFolder -and $UIActionSafetyEvidenceFolder -ne "TBD") {
+        $arguments += "-FWPIEUIActionSafetyEvidenceFolder=`"$UIActionSafetyEvidenceFolder`""
+        $arguments += "-FWPIEUIActionSafetyEvidencePrefix=`"$UIActionSafetyEvidencePrefix`""
+    }
+}
+
 if ($EnableLiveCoding) {
     $arguments = $arguments | Where-Object { $_ -ne "-NoLiveCoding" }
 }
@@ -170,6 +187,9 @@ if ($DryRun) {
     Write-Host "Debug presentation evidence: $([bool]$DebugPresentationEvidence)"
     Write-Host "Debug presentation evidence folder: $DebugPresentationEvidenceFolder"
     Write-Host "Debug presentation evidence prefix: $DebugPresentationEvidencePrefix"
+    Write-Host "UI action safety evidence: $([bool]$UIActionSafetyEvidence)"
+    Write-Host "UI action safety evidence folder: $UIActionSafetyEvidenceFolder"
+    Write-Host "UI action safety evidence prefix: $UIActionSafetyEvidencePrefix"
     Write-Host "Log window: $(-not [bool]$NoLogWindow)"
     Write-Host "Command: `"$editor`" $($arguments -join ' ')"
     exit 0
