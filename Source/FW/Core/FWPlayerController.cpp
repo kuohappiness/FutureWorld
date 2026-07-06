@@ -1009,22 +1009,31 @@ void AFWPlayerController::WriteVehicleDestructionEvidenceState(const FString& St
 	const AFWVehicleBase* TargetVehicle = VehicleDestructionEvidenceTargetActor.Get();
 	const UFWHealthComponent* VehicleHealth = TargetVehicle ? TargetVehicle->FindComponentByClass<UFWHealthComponent>() : nullptr;
 	const UFWStateMachineComponent* StateMachine = TargetVehicle ? TargetVehicle->FindComponentByClass<UFWStateMachineComponent>() : nullptr;
+	const AFWPlayerState* FWPlayerState = GetPlayerState<AFWPlayerState>();
+	const FFWHUDStateSnapshot Snapshot = BuildHUDStateSnapshot();
+	const AFWCompetitiveGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AFWCompetitiveGameMode>() : nullptr;
 	const FString AbsoluteFolder = FPaths::ConvertRelativePathToFull(VehicleDestructionEvidenceFolder);
 	IFileManager::Get().MakeDirectory(*AbsoluteFolder, true);
 	const FString EvidencePath = FPaths::Combine(AbsoluteFolder, FString::Printf(TEXT("%s_state-evidence.jsonl"), *VehicleDestructionEvidencePrefix));
 	const FString Line = FString::Printf(
-		TEXT("{\"event\":\"PIE vehicle destruction evidence step\",\"target\":\"%s\",\"step\":\"%s\",\"stepIndex\":%d,\"action\":\"%s\",\"vehicle\":\"%s\",\"vehicleClass\":\"%s\",\"isDestroyed\":%s,\"health\":%.2f,\"maxHealth\":%.2f,\"isHealthDead\":%s,\"state\":\"%s\",\"delegateCount\":%d,\"gameplayEventCount\":%d,\"lastCombat\":\"%s\"}\n"),
+		TEXT("{\"event\":\"PIE vehicle destruction evidence step\",\"target\":\"%s\",\"step\":\"%s\",\"stepIndex\":%d,\"action\":\"%s\",\"vehicle\":\"%s\",\"vehicleClass\":\"%s\",\"isCoreVehicle\":%s,\"isDestroyed\":%s,\"health\":%.2f,\"maxHealth\":%.2f,\"isHealthDead\":%s,\"state\":\"%s\",\"playerLives\":%d,\"hudLives\":%d,\"coreVehicleHealth\":%.2f,\"coreVehicleMaxHealth\":%.2f,\"matchState\":\"%s\",\"delegateCount\":%d,\"gameplayEventCount\":%d,\"lastCombat\":\"%s\"}\n"),
 		*FWJsonEscape(VehicleDestructionEvidenceTarget),
 		*FWJsonEscape(StepSuffix),
 		VehicleDestructionEvidenceStep,
 		*FWJsonEscape(ActionLabel),
 		*FWJsonEscape(GetNameSafe(TargetVehicle)),
 		TargetVehicle ? *FWJsonEscape(TargetVehicle->GetClass()->GetName()) : TEXT(""),
+		FWPlayerState && TargetVehicle && FWPlayerState->CoreVehicle == TargetVehicle ? TEXT("true") : TEXT("false"),
 		TargetVehicle && TargetVehicle->IsDestroyed() ? TEXT("true") : TEXT("false"),
 		VehicleHealth ? VehicleHealth->CurrentHealth : 0.0f,
 		VehicleHealth ? VehicleHealth->MaxHealth : 0.0f,
 		VehicleHealth && VehicleHealth->IsDead() ? TEXT("true") : TEXT("false"),
 		StateMachine ? *FWJsonEscape(StateMachine->CurrentState.ToString()) : TEXT(""),
+		FWPlayerState ? FWPlayerState->Lives : 0,
+		Snapshot.Lives,
+		Snapshot.CoreVehicleHealth,
+		Snapshot.CoreVehicleMaxHealth,
+		GameMode ? *FWJsonEscape(GameMode->GetCurrentMatchStateTag().ToString()) : TEXT(""),
 		VehicleDestructionEvidenceDelegateCount,
 		VehicleDestructionEvidenceGameplayEventCount,
 		*FWJsonEscape(LastCombatDebugText));
