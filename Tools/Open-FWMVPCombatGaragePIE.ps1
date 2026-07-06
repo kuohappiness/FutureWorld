@@ -23,6 +23,8 @@ param(
     [string]$UIActionSafetyEvidencePrefix = ("FW_MVP_PIE_UIActionSafety_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [string]$PerformanceSmokeEvidenceFolder,
     [string]$PerformanceSmokeEvidencePrefix = ("FW_MVP_PIE_PerformanceSmoke_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
+    [string]$FullLoopEvidenceFolder,
+    [string]$FullLoopEvidencePrefix = ("FW_MVP_PIE_FullLoop_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [switch]$StartPIE,
     [switch]$VehicleInteractionEvidence,
     [switch]$VehicleDriveEvidence,
@@ -32,6 +34,7 @@ param(
     [switch]$DebugPresentationEvidence,
     [switch]$UIActionSafetyEvidence,
     [switch]$PerformanceSmokeEvidence,
+    [switch]$FullLoopEvidence,
     [switch]$NoLogWindow,
     [switch]$EnableLiveCoding,
     [switch]$DryRun
@@ -175,6 +178,20 @@ if ($PerformanceSmokeEvidence) {
     }
 }
 
+if ($FullLoopEvidence) {
+    $arguments += "-FWPIEFullLoopEvidence"
+    if (-not $FullLoopEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
+        $reportText = Get-Content -Raw $ReportPath
+        if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
+            $FullLoopEvidenceFolder = $Matches[1].Trim()
+        }
+    }
+    if ($FullLoopEvidenceFolder -and $FullLoopEvidenceFolder -ne "TBD") {
+        $arguments += "-FWPIEFullLoopEvidenceFolder=`"$FullLoopEvidenceFolder`""
+        $arguments += "-FWPIEFullLoopEvidencePrefix=`"$FullLoopEvidencePrefix`""
+    }
+}
+
 if ($EnableLiveCoding) {
     $arguments = $arguments | Where-Object { $_ -ne "-NoLiveCoding" }
 }
@@ -210,6 +227,9 @@ if ($DryRun) {
     Write-Host "Performance smoke evidence: $([bool]$PerformanceSmokeEvidence)"
     Write-Host "Performance smoke evidence folder: $PerformanceSmokeEvidenceFolder"
     Write-Host "Performance smoke evidence prefix: $PerformanceSmokeEvidencePrefix"
+    Write-Host "Full loop evidence: $([bool]$FullLoopEvidence)"
+    Write-Host "Full loop evidence folder: $FullLoopEvidenceFolder"
+    Write-Host "Full loop evidence prefix: $FullLoopEvidencePrefix"
     Write-Host "Log window: $(-not [bool]$NoLogWindow)"
     Write-Host "Command: `"$editor`" $($arguments -join ' ')"
     exit 0

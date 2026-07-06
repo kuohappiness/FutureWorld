@@ -51,7 +51,7 @@ This report is the final manual PIE evidence record for `L_Test_CombatGarage`. A
 - [x] PIE-20 Debug HUD or debug output exposes core actor state and recent gameplay events.
 - [x] PIE-21 No UI action directly changes health, lives, vehicle destruction, or match end state.
 - [x] PIE-22 No obvious per-frame log spam or severe responsiveness issue during the default test map loop.
-- [ ] PIE-23 The test map demonstrates the complete MVP loop from spawn through combat, vehicle use, life penalty, respawn, and match end.
+- [x] PIE-23 The test map demonstrates the complete MVP loop from spawn through combat, vehicle use, life penalty, respawn, and match end.
 
 ## Result
 

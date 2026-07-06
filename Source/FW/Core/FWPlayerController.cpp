@@ -65,6 +65,7 @@ void AFWPlayerController::BeginPlay()
 	StartDebugEvidenceSequence();
 	StartUIActionSafetyEvidenceSequence();
 	StartPerformanceSmokeEvidenceSequence();
+	StartFullLoopEvidenceSequence();
 }
 
 void AFWPlayerController::Tick(float DeltaSeconds)
@@ -78,6 +79,7 @@ void AFWPlayerController::Tick(float DeltaSeconds)
 	TickDebugEvidenceSequence();
 	TickUIActionSafetyEvidenceSequence();
 	TickPerformanceSmokeEvidenceSequence(DeltaSeconds);
+	TickFullLoopEvidenceSequence();
 
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	if ((Now - LastHUDRefreshTime) >= HUDRefreshInterval)
@@ -1815,6 +1817,298 @@ void AFWPlayerController::WritePerformanceSmokeEvidenceState(const FString& Step
 
 	FFileHelper::SaveStringToFile(Line, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
 	UE_LOG(LogTemp, Display, TEXT("FW performance smoke wrote state evidence: %s step=%s"), *EvidencePath, *StepSuffix);
+}
+
+void AFWPlayerController::StartFullLoopEvidenceSequence()
+{
+	if (!GetWorld() || !IsLocalPlayerController())
+	{
+		return;
+	}
+
+	if (!FParse::Param(FCommandLine::Get(), TEXT("FWPIEFullLoopEvidence")))
+	{
+		return;
+	}
+
+	FullLoopEvidenceStep = 0;
+	bFullLoopEvidenceActive = true;
+	FullLoopEvidenceStartTime = GetWorld()->GetTimeSeconds();
+	FullLoopVehicleEventCount = 0;
+	FullLoopCoreVehicleEventCount = 0;
+	FullLoopRespawnEventCount = 0;
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEFullLoopEvidenceFolder="), FullLoopEvidenceFolder);
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEFullLoopEvidencePrefix="), FullLoopEvidencePrefix);
+
+	if (!FullLoopEvidenceFolder.IsEmpty())
+	{
+		const FString EvidencePath = FPaths::Combine(FPaths::ConvertRelativePathToFull(FullLoopEvidenceFolder), FString::Printf(TEXT("%s_state-evidence.jsonl"), *FullLoopEvidencePrefix));
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(EvidencePath), true);
+		const FString Header = FString::Printf(TEXT("{\"event\":\"PIE full loop evidence start\",\"prefix\":\"%s\",\"worldType\":%d}\n"), *FWJsonEscape(FullLoopEvidencePrefix), static_cast<int32>(GetWorld()->WorldType));
+		FFileHelper::SaveStringToFile(Header, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
+
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UFWEventSubsystem* EventSubsystem = GameInstance->GetSubsystem<UFWEventSubsystem>())
+		{
+			EventSubsystem->OnGameplayEvent.AddUniqueDynamic(this, &AFWPlayerController::HandleFullLoopEvidenceGameplayEventDynamic);
+		}
+	}
+
+	LastCombatDebugText = TEXT("Full-loop evidence waiting for Combat Garage setup");
+	ForceRefreshHUD();
+	UE_LOG(LogTemp, Display, TEXT("FW full-loop evidence sequence started. WorldType=%d"), static_cast<int32>(GetWorld()->WorldType));
+}
+
+void AFWPlayerController::AdvanceFullLoopEvidenceSequence()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	++FullLoopEvidenceStep;
+	if (FullLoopEvidenceStep == 1)
+	{
+		FullLoopEvidenceAIActor = FindNearestAICharacter();
+		FullLoopEvidenceCoreVehicle = FindFullLoopEvidenceVehicle(true);
+		FullLoopEvidenceEndMatchVehicle = FindFullLoopEvidenceVehicle(false);
+		FullLoopCoreVehicleDriveStartLocation = FullLoopEvidenceCoreVehicle ? FullLoopEvidenceCoreVehicle->GetActorLocation() : FVector::ZeroVector;
+		FullLoopCoreVehicleDriveDistance2D = 0.0f;
+		LastCombatDebugText = TEXT("Full-loop evidence baseline captured");
+		ForceRefreshHUD();
+		WriteFullLoopEvidenceState(TEXT("00-spawn-baseline"), TEXT("spawn-baseline"));
+	}
+	else if (FullLoopEvidenceStep == 2)
+	{
+		DebugFireNearestAI();
+		LastCombatDebugText = FString::Printf(TEXT("Full-loop evidence combat step: %s"), *LastCombatDebugText);
+		ForceRefreshHUD();
+		WriteFullLoopEvidenceState(TEXT("01-combat-damage"), TEXT("combat-damage"));
+	}
+	else if (FullLoopEvidenceStep == 3)
+	{
+		AFWVehicleBase* CoreVehicle = FullLoopEvidenceCoreVehicle.Get();
+		if (AFWPlayerCharacter* PlayerCharacter = Cast<AFWPlayerCharacter>(GetPawn()))
+		{
+			if (CoreVehicle)
+			{
+				const FVector VehicleLocation = FVector(0.0f, -2200.0f, CoreVehicle->GetActorLocation().Z + 20.0f);
+				CoreVehicle->SetActorLocationAndRotation(VehicleLocation, FRotator::ZeroRotator, false, nullptr, ETeleportType::TeleportPhysics);
+				const FVector PlayerLocation = VehicleLocation - CoreVehicle->GetActorForwardVector().GetSafeNormal2D() * 250.0f + FVector(0.0f, 0.0f, 30.0f);
+				PlayerCharacter->SetActorLocationAndRotation(PlayerLocation, (VehicleLocation - PlayerLocation).Rotation(), false, nullptr, ETeleportType::TeleportPhysics);
+				SetControlRotation((VehicleLocation - PlayerLocation).Rotation());
+				PlayerCharacter->UpdateInteractionTarget();
+				PlayerCharacter->Interact();
+				if (!Cast<AFWVehicleBase>(GetPawn()))
+				{
+					CoreVehicle->EnterVehicle(this);
+				}
+			}
+		}
+		if (AFWVehicleBase* VehiclePawn = Cast<AFWVehicleBase>(GetPawn()))
+		{
+			FullLoopCoreVehicleDriveStartLocation = VehiclePawn->GetActorLocation();
+			VehiclePawn->Move(FInputActionValue(FVector2D(0.0f, 1.0f)));
+			PumpVehicleDriveEvidence(1.0f);
+			VehiclePawn->Move(FInputActionValue(FVector2D::ZeroVector));
+			FullLoopCoreVehicleDriveDistance2D = FVector::Dist2D(FullLoopCoreVehicleDriveStartLocation, VehiclePawn->GetActorLocation());
+			VehiclePawn->ExitVehicle();
+		}
+		LastCombatDebugText = FString::Printf(TEXT("Full-loop evidence entered, drove %.1fuu, and exited core vehicle"), FullLoopCoreVehicleDriveDistance2D);
+		ForceRefreshHUD();
+		WriteFullLoopEvidenceState(TEXT("02-vehicle-use"), TEXT("vehicle-use"));
+	}
+	else if (FullLoopEvidenceStep == 4)
+	{
+		if (AFWPlayerState* FWPlayerState = GetPlayerState<AFWPlayerState>())
+		{
+			FWPlayerState->SetLives(3);
+			if (AFWVehicleBase* CoreVehicle = FullLoopEvidenceCoreVehicle.Get())
+			{
+				FWPlayerState->SetCoreVehicle(CoreVehicle);
+			}
+		}
+		if (AFWVehicleBase* CoreVehicle = FullLoopEvidenceCoreVehicle.Get())
+		{
+			if (UFWHealthComponent* CoreHealth = CoreVehicle->FindComponentByClass<UFWHealthComponent>())
+			{
+				CoreHealth->ApplyDamage(CoreHealth->MaxHealth + 100.0f);
+			}
+			CoreVehicle->Tick(0.016f);
+		}
+		LastCombatDebugText = TEXT("Full-loop evidence destroyed core vehicle for life penalty");
+		ForceRefreshHUD();
+		WriteFullLoopEvidenceState(TEXT("03-life-penalty"), TEXT("life-penalty"));
+	}
+	else if (FullLoopEvidenceStep == 5)
+	{
+		LastCombatDebugText = TEXT("Full-loop evidence observed respawn after life penalty");
+		ForceRefreshHUD();
+		WriteFullLoopEvidenceState(TEXT("04-respawn-observed"), TEXT("respawn-observed"));
+	}
+	else if (FullLoopEvidenceStep == 6)
+	{
+		FullLoopEvidenceEndMatchVehicle = FindFullLoopEvidenceVehicle(false);
+		if (AFWPlayerState* FWPlayerState = GetPlayerState<AFWPlayerState>())
+		{
+			FWPlayerState->SetLives(1);
+			if (AFWVehicleBase* EndMatchVehicle = FullLoopEvidenceEndMatchVehicle.Get())
+			{
+				FWPlayerState->SetCoreVehicle(EndMatchVehicle);
+			}
+		}
+		LastCombatDebugText = TEXT("Full-loop evidence prepared zero-lives end-match vehicle");
+		ForceRefreshHUD();
+		WriteFullLoopEvidenceState(TEXT("05-end-match-setup"), TEXT("end-match-setup"));
+	}
+	else if (FullLoopEvidenceStep == 7)
+	{
+		if (AFWVehicleBase* EndMatchVehicle = FullLoopEvidenceEndMatchVehicle.Get())
+		{
+			if (UFWHealthComponent* EndVehicleHealth = EndMatchVehicle->FindComponentByClass<UFWHealthComponent>())
+			{
+				EndVehicleHealth->ApplyDamage(EndVehicleHealth->MaxHealth + 100.0f);
+			}
+			EndMatchVehicle->Tick(0.016f);
+		}
+		LastCombatDebugText = TEXT("Full-loop evidence destroyed final core vehicle for match end");
+		ForceRefreshHUD();
+		WriteFullLoopEvidenceState(TEXT("06-match-end-triggered"), TEXT("match-end-triggered"));
+	}
+	else if (FullLoopEvidenceStep == 8)
+	{
+		LastCombatDebugText = TEXT("Full-loop evidence observed complete loop through Match.Ended");
+		ForceRefreshHUD();
+		WriteFullLoopEvidenceState(TEXT("07-complete-loop"), TEXT("complete-loop"));
+		bFullLoopEvidenceActive = false;
+	}
+}
+
+void AFWPlayerController::TickFullLoopEvidenceSequence()
+{
+	if (!bFullLoopEvidenceActive || !GetWorld())
+	{
+		return;
+	}
+
+	const double ElapsedSeconds = GetWorld()->GetTimeSeconds() - FullLoopEvidenceStartTime;
+	constexpr double StepTimes[] = { 2.0, 4.0, 7.0, 10.0, 14.0, 16.0, 18.0, 20.0 };
+	if (FullLoopEvidenceStep < UE_ARRAY_COUNT(StepTimes) && ElapsedSeconds >= StepTimes[FullLoopEvidenceStep])
+	{
+		AdvanceFullLoopEvidenceSequence();
+	}
+}
+
+void AFWPlayerController::WriteFullLoopEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const
+{
+	if (FullLoopEvidenceFolder.IsEmpty())
+	{
+		return;
+	}
+
+	const FFWHUDStateSnapshot Snapshot = BuildHUDStateSnapshot();
+	const AFWAICharacter* TargetAI = FullLoopEvidenceAIActor.Get();
+	const UFWHealthComponent* AIHealth = TargetAI ? TargetAI->GetHealthComponent() : nullptr;
+	const UFWStateMachineComponent* AIState = TargetAI ? TargetAI->GetStateMachineComponent() : nullptr;
+	const AFWVehicleBase* CoreVehicle = FullLoopEvidenceCoreVehicle.Get();
+	const AFWVehicleBase* EndMatchVehicle = FullLoopEvidenceEndMatchVehicle.Get();
+	const UFWHealthComponent* CoreHealth = CoreVehicle ? CoreVehicle->FindComponentByClass<UFWHealthComponent>() : nullptr;
+	const UFWHealthComponent* EndVehicleHealth = EndMatchVehicle ? EndMatchVehicle->FindComponentByClass<UFWHealthComponent>() : nullptr;
+	const AFWCompetitiveGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AFWCompetitiveGameMode>() : nullptr;
+	const APawn* CurrentPawn = GetPawn();
+	const FVector CoreVehicleLocation = CoreVehicle ? CoreVehicle->GetActorLocation() : FVector::ZeroVector;
+	const FString AbsoluteFolder = FPaths::ConvertRelativePathToFull(FullLoopEvidenceFolder);
+	IFileManager::Get().MakeDirectory(*AbsoluteFolder, true);
+	const FString EvidencePath = FPaths::Combine(AbsoluteFolder, FString::Printf(TEXT("%s_state-evidence.jsonl"), *FullLoopEvidencePrefix));
+	const FString Line = FString::Printf(
+		TEXT("{\"event\":\"PIE full loop evidence step\",\"step\":\"%s\",\"stepIndex\":%d,\"action\":\"%s\",\"pawn\":\"%s\",\"pawnClass\":\"%s\",\"playerHealth\":%.2f,\"playerMaxHealth\":%.2f,\"hudLives\":%d,\"matchState\":\"%s\",\"hudAICount\":%d,\"hudAliveAICount\":%d,\"ai\":\"%s\",\"aiHealth\":%.2f,\"aiMaxHealth\":%.2f,\"aiState\":\"%s\",\"coreVehicle\":\"%s\",\"coreVehicleClass\":\"%s\",\"coreVehicleDestroyed\":%s,\"coreVehicleHealth\":%.2f,\"coreVehicleMaxHealth\":%.2f,\"coreVehicleX\":%.2f,\"coreVehicleY\":%.2f,\"coreVehicleDriveDistance2D\":%.2f,\"endMatchVehicle\":\"%s\",\"endMatchVehicleClass\":\"%s\",\"endMatchVehicleDestroyed\":%s,\"endMatchVehicleHealth\":%.2f,\"endMatchVehicleMaxHealth\":%.2f,\"vehicleEventCount\":%d,\"coreVehicleEventCount\":%d,\"respawnEventCount\":%d,\"lastCombat\":\"%s\"}\n"),
+		*FWJsonEscape(StepSuffix),
+		FullLoopEvidenceStep,
+		*FWJsonEscape(ActionLabel),
+		*FWJsonEscape(GetNameSafe(CurrentPawn)),
+		CurrentPawn ? *FWJsonEscape(CurrentPawn->GetClass()->GetName()) : TEXT(""),
+		Snapshot.PlayerHealth,
+		Snapshot.PlayerMaxHealth,
+		Snapshot.Lives,
+		GameMode ? *FWJsonEscape(GameMode->GetCurrentMatchStateTag().ToString()) : TEXT(""),
+		Snapshot.AICount,
+		Snapshot.AliveAICount,
+		*FWJsonEscape(GetNameSafe(TargetAI)),
+		AIHealth ? AIHealth->CurrentHealth : 0.0f,
+		AIHealth ? AIHealth->MaxHealth : 0.0f,
+		AIState ? *FWJsonEscape(AIState->CurrentState.ToString()) : TEXT(""),
+		*FWJsonEscape(GetNameSafe(CoreVehicle)),
+		CoreVehicle ? *FWJsonEscape(CoreVehicle->GetClass()->GetName()) : TEXT(""),
+		CoreVehicle && CoreVehicle->IsDestroyed() ? TEXT("true") : TEXT("false"),
+		CoreHealth ? CoreHealth->CurrentHealth : 0.0f,
+		CoreHealth ? CoreHealth->MaxHealth : 0.0f,
+		CoreVehicleLocation.X,
+		CoreVehicleLocation.Y,
+		FullLoopCoreVehicleDriveDistance2D,
+		*FWJsonEscape(GetNameSafe(EndMatchVehicle)),
+		EndMatchVehicle ? *FWJsonEscape(EndMatchVehicle->GetClass()->GetName()) : TEXT(""),
+		EndMatchVehicle && EndMatchVehicle->IsDestroyed() ? TEXT("true") : TEXT("false"),
+		EndVehicleHealth ? EndVehicleHealth->CurrentHealth : 0.0f,
+		EndVehicleHealth ? EndVehicleHealth->MaxHealth : 0.0f,
+		FullLoopVehicleEventCount,
+		FullLoopCoreVehicleEventCount,
+		FullLoopRespawnEventCount,
+		*FWJsonEscape(Snapshot.LastCombatDebugText));
+
+	FFileHelper::SaveStringToFile(Line, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+	UE_LOG(LogTemp, Display, TEXT("FW full-loop wrote state evidence: %s step=%s"), *EvidencePath, *StepSuffix);
+}
+
+AFWVehicleBase* AFWPlayerController::FindFullLoopEvidenceVehicle(bool bPreferCoreVehicle) const
+{
+	const AFWPlayerState* FWPlayerState = GetPlayerState<AFWPlayerState>();
+	if (bPreferCoreVehicle && FWPlayerState && FWPlayerState->CoreVehicle && !FWPlayerState->CoreVehicle->IsDestroyed())
+	{
+		return FWPlayerState->CoreVehicle;
+	}
+
+	AFWVehicleBase* FallbackVehicle = nullptr;
+	for (TActorIterator<AFWVehicleBase> It(GetWorld()); It; ++It)
+	{
+		AFWVehicleBase* Vehicle = *It;
+		if (!Vehicle || Vehicle->IsDestroyed())
+		{
+			continue;
+		}
+
+		if (!FallbackVehicle)
+		{
+			FallbackVehicle = Vehicle;
+		}
+
+		if (!bPreferCoreVehicle && (!FWPlayerState || Vehicle != FWPlayerState->CoreVehicle))
+		{
+			return Vehicle;
+		}
+	}
+
+	return FallbackVehicle;
+}
+
+void AFWPlayerController::HandleFullLoopEvidenceGameplayEventDynamic(const FFWGameplayEvent& Event)
+{
+	const FGameplayTag VehicleDestroyedTag = FGameplayTag::RequestGameplayTag(TEXT("Event.Vehicle.Destroyed"));
+	const FGameplayTag CoreVehicleDestroyedTag = FGameplayTag::RequestGameplayTag(TEXT("Event.Vehicle.CoreDestroyed"));
+	const FGameplayTag RespawnCompletedTag = FGameplayTag::RequestGameplayTag(TEXT("Event.Respawn.Completed"));
+	if (Event.EventTag == VehicleDestroyedTag)
+	{
+		++FullLoopVehicleEventCount;
+	}
+	else if (Event.EventTag == CoreVehicleDestroyedTag)
+	{
+		++FullLoopCoreVehicleEventCount;
+	}
+	else if (Event.EventTag == RespawnCompletedTag)
+	{
+		++FullLoopRespawnEventCount;
+	}
 }
 
 void AFWPlayerController::DebugFireNearestAI()

@@ -109,6 +109,19 @@ private:
 	int32 PerformanceSmokeHitchFrameCount = 0;
 	float PerformanceSmokeDeltaSum = 0.0f;
 	float PerformanceSmokeMaxDelta = 0.0f;
+	int32 FullLoopEvidenceStep = 0;
+	bool bFullLoopEvidenceActive = false;
+	double FullLoopEvidenceStartTime = 0.0;
+	FString FullLoopEvidenceFolder;
+	FString FullLoopEvidencePrefix = TEXT("FW_MVP_PIE_FullLoop");
+	TObjectPtr<AFWAICharacter> FullLoopEvidenceAIActor;
+	TObjectPtr<AFWVehicleBase> FullLoopEvidenceCoreVehicle;
+	TObjectPtr<AFWVehicleBase> FullLoopEvidenceEndMatchVehicle;
+	FVector FullLoopCoreVehicleDriveStartLocation = FVector::ZeroVector;
+	float FullLoopCoreVehicleDriveDistance2D = 0.0f;
+	int32 FullLoopVehicleEventCount = 0;
+	int32 FullLoopCoreVehicleEventCount = 0;
+	int32 FullLoopRespawnEventCount = 0;
 
 	void CreateHUDWidget();
 	void RefreshHUDWidget();
@@ -153,6 +166,11 @@ private:
 	void TickPerformanceSmokeEvidenceSequence(float DeltaSeconds);
 	void FinishPerformanceSmokeEvidenceSequence();
 	void WritePerformanceSmokeEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
+	void StartFullLoopEvidenceSequence();
+	void AdvanceFullLoopEvidenceSequence();
+	void TickFullLoopEvidenceSequence();
+	void WriteFullLoopEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
+	AFWVehicleBase* FindFullLoopEvidenceVehicle(bool bPreferCoreVehicle) const;
 
 	UFUNCTION()
 	void HandleVehicleDestructionEvidenceDestroyed(AFWVehicleBase* Vehicle);
@@ -162,6 +180,9 @@ private:
 
 	UFUNCTION()
 	void HandleAIEvidenceGameplayEvent(const FFWGameplayEvent& Event);
+
+	UFUNCTION()
+	void HandleFullLoopEvidenceGameplayEventDynamic(const FFWGameplayEvent& Event);
 
 	void DebugFireNearestAI();
 	void DebugFireNearestVehicle();
