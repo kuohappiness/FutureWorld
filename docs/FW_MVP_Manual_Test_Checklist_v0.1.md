@@ -24,7 +24,7 @@ Create a final manual PIE evidence session with `Tools\New-FWMVPPIEAcceptanceSes
 - `Tools\Invoke-FWMVPPIECameraEvidenceCapture.ps1` captures third-person, first-person, and restored third-person screenshots after toggling `V`; the HUD camera line exposes `Camera: ThirdPerson` or `Camera: FirstPerson` so the visual evidence proves the toggle state as well as framing.
 - `Tools\Open-FWMVPCombatGaragePIE.ps1 -StartPIE -VehicleInteractionEvidence -VehicleInteractionTarget Car|Motorcycle` writes a `*_state-evidence.jsonl` file for `PIE-09`/`PIE-10` with `Enter Vehicle`, possessed target vehicle, `Exit Vehicle`, vehicle health, and returned on-foot state. `Tools\Invoke-FWMVPPIEVehicleInteractionEvidenceCapture.ps1` can add synchronized screenshots when the local editor viewport is visible.
 - `Tools\Open-FWMVPCombatGaragePIE.ps1 -StartPIE -VehicleDriveEvidence -VehicleDriveTarget Car|Motorcycle` writes a `*_state-evidence.jsonl` file for vehicle driving checks with throttle, reverse/brake, steering yaw, camera control rotation, collision setup, and a blocking map collision probe.
-- `Tools\Open-FWMVPCombatGaragePIE.ps1 -StartPIE -VehicleDestructionEvidence -VehicleDestructionTarget Car|Motorcycle` writes a `*_state-evidence.jsonl` file for `PIE-13` and `PIE-14` with before-destruction health/state, after-destruction `State.Vehicle.Destroyed`, dead health, registered core-vehicle flag, PlayerState/HUD lives, core vehicle health, match state, and delegate/gameplay event counts that must remain `1` after a repeated destroy attempt.
+- `Tools\Open-FWMVPCombatGaragePIE.ps1 -StartPIE -VehicleDestructionEvidence -VehicleDestructionTarget Car|Motorcycle` writes a `*_state-evidence.jsonl` file for `PIE-13`, `PIE-14`, and `PIE-15` with before-destruction health/state, after-destruction `State.Vehicle.Destroyed`, dead health, registered core-vehicle flag, PlayerState/HUD lives, core vehicle health, match state, respawn event count, player pawn/health/location, and delegate/gameplay event counts that must remain `1` after a repeated destroy attempt. The sequence advances on PIE world time so respawn evidence is sampled after the gameplay respawn timer can complete.
 - `F9` in PIE fires the current player weapon at the nearest living AI through the normal `AFWWeaponBase::FireAtActor` path for acceptance evidence. The HUD AI debug block exposes AI count, nearest AI health/state, and the last combat debug result so `PIE-07` can prove AI damage without relying on blind aiming in a dark placeholder map.
 - `F10` in PIE fires the current player weapon at the nearest active vehicle through the normal `AFWWeaponBase::FireAtActor` path for acceptance evidence. The HUD vehicle debug block exposes vehicle count, nearest vehicle health/state, and the last combat debug result so `PIE-08` can prove vehicle damage without relying on blind aiming in a dark placeholder map.
 - `Tools\Export-FWMVPPIERuntimeEvidence.ps1` extracts `FW.log` lines proving PIE was started for `L_Test_CombatGarage`, including `UEDPIE_0_L_Test_CombatGarage`, `FWCompetitiveGameMode`, and `Bringing World ... up for play`; `Tools\Test-FWMVPPIERuntimeEvidence.ps1` verifies positive and negative synthetic log paths.
@@ -94,9 +94,9 @@ Create a final manual PIE evidence session with `Tools\New-FWMVPPIEAcceptanceSes
 
 - Match enters `Match.InProgress` after test setup.
 - Core vehicle destruction subtracts the configured life penalty.
-- Player respawns if lives remain and respawn is enabled.
+- Player respawns if lives remain and respawn is enabled; `PIE-15` evidence should record `Match.Spawning` after the life penalty, then `Match.InProgress`, `respawnEventCount >= 1`, stable PlayerState/HUD lives, and a valid player pawn with positive health after respawn.
 - Lives reaching zero ends the match.
-- `Event.Respawn.Completed` fires after respawn.
+- `Event.Respawn.Completed` fires after respawn; `PIE-15` evidence should record it exactly as a gameplay event count increase after the respawn observation step.
 
 ## HUD And Debug
 

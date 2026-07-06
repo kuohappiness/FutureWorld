@@ -865,9 +865,10 @@ void AFWPlayerController::StartVehicleDestructionEvidenceSequence()
 
 	VehicleDestructionEvidenceStep = 0;
 	bVehicleDestructionEvidenceActive = true;
-	VehicleDestructionEvidenceStartTime = FPlatformTime::Seconds();
+	VehicleDestructionEvidenceStartTime = GetWorld()->GetTimeSeconds();
 	VehicleDestructionEvidenceDelegateCount = 0;
 	VehicleDestructionEvidenceGameplayEventCount = 0;
+	VehicleDestructionEvidenceRespawnEventCount = 0;
 	FParse::Value(FCommandLine::Get(), TEXT("FWPIEVehicleDestructionEvidenceFolder="), VehicleDestructionEvidenceFolder);
 	FParse::Value(FCommandLine::Get(), TEXT("FWPIEVehicleDestructionEvidencePrefix="), VehicleDestructionEvidencePrefix);
 	FParse::Value(FCommandLine::Get(), TEXT("FWPIEVehicleDestructionTarget="), VehicleDestructionEvidenceTarget);
@@ -940,6 +941,12 @@ void AFWPlayerController::AdvanceVehicleDestructionEvidenceSequence()
 		LastCombatDebugText = FString::Printf(TEXT("Vehicle destruction evidence repeated %s destroy attempt"), *VehicleDestructionEvidenceTarget);
 		ForceRefreshHUD();
 		WriteVehicleDestructionEvidenceState(TEXT("02-after-repeat-destruction"), TEXT("after-repeat-destruction"));
+	}
+	else if (VehicleDestructionEvidenceStep == 4)
+	{
+		LastCombatDebugText = FString::Printf(TEXT("Vehicle destruction evidence observed %s respawn presentation"), *VehicleDestructionEvidenceTarget);
+		ForceRefreshHUD();
+		WriteVehicleDestructionEvidenceState(TEXT("03-after-respawn"), TEXT("after-respawn"));
 		bVehicleDestructionEvidenceActive = false;
 		FTSTicker::GetCoreTicker().RemoveTicker(VehicleDestructionEvidenceTickerHandle);
 	}
@@ -952,8 +959,8 @@ void AFWPlayerController::TickVehicleDestructionEvidenceSequence()
 		return;
 	}
 
-	const double ElapsedSeconds = FPlatformTime::Seconds() - VehicleDestructionEvidenceStartTime;
-	constexpr double StepTimes[] = { 2.0, 4.0, 6.0 };
+	const double ElapsedSeconds = GetWorld()->GetTimeSeconds() - VehicleDestructionEvidenceStartTime;
+	constexpr double StepTimes[] = { 2.0, 4.0, 6.0, 10.0 };
 	if (VehicleDestructionEvidenceStep < UE_ARRAY_COUNT(StepTimes) && ElapsedSeconds >= StepTimes[VehicleDestructionEvidenceStep])
 	{
 		AdvanceVehicleDestructionEvidenceSequence();
@@ -1012,11 +1019,12 @@ void AFWPlayerController::WriteVehicleDestructionEvidenceState(const FString& St
 	const AFWPlayerState* FWPlayerState = GetPlayerState<AFWPlayerState>();
 	const FFWHUDStateSnapshot Snapshot = BuildHUDStateSnapshot();
 	const AFWCompetitiveGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AFWCompetitiveGameMode>() : nullptr;
+	const APawn* CurrentPawn = GetPawn();
 	const FString AbsoluteFolder = FPaths::ConvertRelativePathToFull(VehicleDestructionEvidenceFolder);
 	IFileManager::Get().MakeDirectory(*AbsoluteFolder, true);
 	const FString EvidencePath = FPaths::Combine(AbsoluteFolder, FString::Printf(TEXT("%s_state-evidence.jsonl"), *VehicleDestructionEvidencePrefix));
 	const FString Line = FString::Printf(
-		TEXT("{\"event\":\"PIE vehicle destruction evidence step\",\"target\":\"%s\",\"step\":\"%s\",\"stepIndex\":%d,\"action\":\"%s\",\"vehicle\":\"%s\",\"vehicleClass\":\"%s\",\"isCoreVehicle\":%s,\"isDestroyed\":%s,\"health\":%.2f,\"maxHealth\":%.2f,\"isHealthDead\":%s,\"state\":\"%s\",\"playerLives\":%d,\"hudLives\":%d,\"coreVehicleHealth\":%.2f,\"coreVehicleMaxHealth\":%.2f,\"matchState\":\"%s\",\"delegateCount\":%d,\"gameplayEventCount\":%d,\"lastCombat\":\"%s\"}\n"),
+		TEXT("{\"event\":\"PIE vehicle destruction evidence step\",\"target\":\"%s\",\"step\":\"%s\",\"stepIndex\":%d,\"action\":\"%s\",\"vehicle\":\"%s\",\"vehicleClass\":\"%s\",\"isCoreVehicle\":%s,\"isDestroyed\":%s,\"health\":%.2f,\"maxHealth\":%.2f,\"isHealthDead\":%s,\"state\":\"%s\",\"playerLives\":%d,\"hudLives\":%d,\"playerHealth\":%.2f,\"playerMaxHealth\":%.2f,\"playerLocationX\":%.2f,\"playerLocationY\":%.2f,\"playerLocationZ\":%.2f,\"playerPawn\":\"%s\",\"playerPawnClass\":\"%s\",\"coreVehicleHealth\":%.2f,\"coreVehicleMaxHealth\":%.2f,\"matchState\":\"%s\",\"delegateCount\":%d,\"gameplayEventCount\":%d,\"respawnEventCount\":%d,\"lastCombat\":\"%s\"}\n"),
 		*FWJsonEscape(VehicleDestructionEvidenceTarget),
 		*FWJsonEscape(StepSuffix),
 		VehicleDestructionEvidenceStep,
@@ -1031,11 +1039,19 @@ void AFWPlayerController::WriteVehicleDestructionEvidenceState(const FString& St
 		StateMachine ? *FWJsonEscape(StateMachine->CurrentState.ToString()) : TEXT(""),
 		FWPlayerState ? FWPlayerState->Lives : 0,
 		Snapshot.Lives,
+		Snapshot.PlayerHealth,
+		Snapshot.PlayerMaxHealth,
+		Snapshot.PlayerLocation.X,
+		Snapshot.PlayerLocation.Y,
+		Snapshot.PlayerLocation.Z,
+		*FWJsonEscape(GetNameSafe(CurrentPawn)),
+		CurrentPawn ? *FWJsonEscape(CurrentPawn->GetClass()->GetName()) : TEXT(""),
 		Snapshot.CoreVehicleHealth,
 		Snapshot.CoreVehicleMaxHealth,
 		GameMode ? *FWJsonEscape(GameMode->GetCurrentMatchStateTag().ToString()) : TEXT(""),
 		VehicleDestructionEvidenceDelegateCount,
 		VehicleDestructionEvidenceGameplayEventCount,
+		VehicleDestructionEvidenceRespawnEventCount,
 		*FWJsonEscape(LastCombatDebugText));
 
 	FFileHelper::SaveStringToFile(Line, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
@@ -1054,9 +1070,14 @@ void AFWPlayerController::HandleVehicleDestructionEvidenceGameplayEvent(const FF
 {
 	const FGameplayTag VehicleDestroyedTag = FGameplayTag::RequestGameplayTag(TEXT("Event.Vehicle.Destroyed"));
 	const FGameplayTag CoreVehicleDestroyedTag = FGameplayTag::RequestGameplayTag(TEXT("Event.Vehicle.CoreDestroyed"));
+	const FGameplayTag RespawnCompletedTag = FGameplayTag::RequestGameplayTag(TEXT("Event.Respawn.Completed"));
 	if (Event.Target && Event.Target == VehicleDestructionEvidenceTargetActor.Get() && (Event.EventTag == VehicleDestroyedTag || Event.EventTag == CoreVehicleDestroyedTag))
 	{
 		++VehicleDestructionEvidenceGameplayEventCount;
+	}
+	else if (Event.EventTag == RespawnCompletedTag)
+	{
+		++VehicleDestructionEvidenceRespawnEventCount;
 	}
 }
 

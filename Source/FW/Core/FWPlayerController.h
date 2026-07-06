@@ -68,6 +68,7 @@ private:
 	TObjectPtr<AFWVehicleBase> VehicleDestructionEvidenceTargetActor;
 	int32 VehicleDestructionEvidenceDelegateCount = 0;
 	int32 VehicleDestructionEvidenceGameplayEventCount = 0;
+	int32 VehicleDestructionEvidenceRespawnEventCount = 0;
 
 	void CreateHUDWidget();
 	void RefreshHUDWidget();
