@@ -1,0 +1,19 @@
+﻿{
+    "FileVersion":  3,
+    "Category":  "Games",
+    "Description":  "Future World UE5 MVP prototype.",
+    "Modules":  [
+                    {
+                        "Name":  "FW",
+                        "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    }
+                ],
+    "Plugins":  [
+                    {
+                        "Name":  "EnhancedInput",
+                        "Enabled":  true
+                    }
+                ],
+    "EngineAssociation":  "UE_5.8"
+}
