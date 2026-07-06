@@ -4,8 +4,10 @@
 #include "../Characters/FWAICharacter.h"
 #include "../Characters/FWCharacterBase.h"
 #include "../Characters/FWPlayerCharacter.h"
+#include "../Combat/FWHitZoneComponent.h"
 #include "../Combat/FWHealthComponent.h"
 #include "../Core/FWCompetitiveGameMode.h"
+#include "../Debug/FWDebugSubsystem.h"
 #include "../Events/FWEventSubsystem.h"
 #include "../Events/FWGameplayEvent.h"
 #include "../State/FWStateMachineComponent.h"
@@ -59,6 +61,7 @@ void AFWPlayerController::BeginPlay()
 	StartVehicleDriveEvidenceSequence();
 	StartVehicleDestructionEvidenceSequence();
 	StartAIEvidenceSequence();
+	StartDebugEvidenceSequence();
 }
 
 void AFWPlayerController::Tick(float DeltaSeconds)
@@ -69,6 +72,7 @@ void AFWPlayerController::Tick(float DeltaSeconds)
 	TickVehicleDriveEvidenceSequence();
 	TickVehicleDestructionEvidenceSequence();
 	TickAIEvidenceSequence();
+	TickDebugEvidenceSequence();
 
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	if ((Now - LastHUDRefreshTime) >= HUDRefreshInterval)
@@ -1290,6 +1294,206 @@ void AFWPlayerController::HandleAIEvidenceGameplayEvent(const FFWGameplayEvent& 
 	{
 		++AIEvidenceDamageAppliedCount;
 	}
+}
+
+void AFWPlayerController::StartDebugEvidenceSequence()
+{
+	if (!GetWorld() || !IsLocalPlayerController())
+	{
+		return;
+	}
+
+	if (!FParse::Param(FCommandLine::Get(), TEXT("FWPIEDebugPresentationEvidence")))
+	{
+		return;
+	}
+
+	DebugEvidenceStep = 0;
+	bDebugEvidenceActive = true;
+	DebugEvidenceStartTime = GetWorld()->GetTimeSeconds();
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEDebugPresentationEvidenceFolder="), DebugEvidenceFolder);
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEDebugPresentationEvidencePrefix="), DebugEvidencePrefix);
+
+	if (!DebugEvidenceFolder.IsEmpty())
+	{
+		const FString EvidencePath = FPaths::Combine(FPaths::ConvertRelativePathToFull(DebugEvidenceFolder), FString::Printf(TEXT("%s_state-evidence.jsonl"), *DebugEvidencePrefix));
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(EvidencePath), true);
+		const FString Header = FString::Printf(TEXT("{\"event\":\"PIE debug presentation evidence start\",\"prefix\":\"%s\",\"worldType\":%d}\n"), *FWJsonEscape(DebugEvidencePrefix), static_cast<int32>(GetWorld()->WorldType));
+		FFileHelper::SaveStringToFile(Header, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("FW debug presentation evidence sequence started. WorldType=%d"), static_cast<int32>(GetWorld()->WorldType));
+	DebugEvidenceTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float DeltaTime)
+	{
+		TickDebugEvidenceSequence();
+		return bDebugEvidenceActive;
+	}));
+}
+
+void AFWPlayerController::AdvanceDebugEvidenceSequence()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	UFWDebugSubsystem* DebugSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFWDebugSubsystem>() : nullptr;
+	++DebugEvidenceStep;
+	if (DebugEvidenceStep == 1)
+	{
+		DebugEvidenceActor = FindDebugEvidenceActor();
+		if (AFWAICharacter* TargetAI = Cast<AFWAICharacter>(DebugEvidenceActor.Get()))
+		{
+			if (!TargetAI->GetController())
+			{
+				TargetAI->SpawnDefaultController();
+			}
+			if (const APawn* PlayerPawn = GetPawn())
+			{
+				const FVector PlayerLocation = PlayerPawn->GetActorLocation();
+				const FVector TargetLocation = PlayerLocation + FVector(550.0f, 0.0f, 0.0f);
+				TargetAI->SetActorLocationAndRotation(TargetLocation, (PlayerLocation - TargetLocation).Rotation(), false, nullptr, ETeleportType::TeleportPhysics);
+			}
+		}
+		if (DebugSubsystem)
+		{
+			DebugSubsystem->SetDebugEnabled(true);
+			DebugSubsystem->ClearRecentEvents();
+			DebugSubsystem->PrintActorDebugState(DebugEvidenceActor.Get(), 3.0f);
+		}
+		LastCombatDebugText = TEXT("Debug evidence enabled actor state output");
+		ForceRefreshHUD();
+		WriteDebugEvidenceState(TEXT("00-debug-enabled"), TEXT("debug-enabled"));
+	}
+	else if (DebugEvidenceStep == 2)
+	{
+		DebugFireNearestAI();
+		if (DebugSubsystem)
+		{
+			DebugSubsystem->PrintActorDebugState(DebugEvidenceActor.Get(), 3.0f);
+		}
+		LastCombatDebugText = FString::Printf(TEXT("Debug evidence recorded recent events: %s"), *LastCombatDebugText);
+		ForceRefreshHUD();
+		WriteDebugEvidenceState(TEXT("01-events-recorded"), TEXT("events-recorded"));
+	}
+	else if (DebugEvidenceStep == 3)
+	{
+		if (DebugSubsystem)
+		{
+			DebugSubsystem->PrintActorDebugState(DebugEvidenceActor.Get(), 3.0f);
+		}
+		LastCombatDebugText = TEXT("Debug evidence verified HUD/debug buffer output");
+		ForceRefreshHUD();
+		WriteDebugEvidenceState(TEXT("02-buffer-visible"), TEXT("buffer-visible"));
+		bDebugEvidenceActive = false;
+		FTSTicker::GetCoreTicker().RemoveTicker(DebugEvidenceTickerHandle);
+	}
+}
+
+void AFWPlayerController::TickDebugEvidenceSequence()
+{
+	if (!bDebugEvidenceActive || !GetWorld())
+	{
+		return;
+	}
+
+	const double ElapsedSeconds = GetWorld()->GetTimeSeconds() - DebugEvidenceStartTime;
+	constexpr double StepTimes[] = { 2.0, 4.0, 6.0 };
+	if (DebugEvidenceStep < UE_ARRAY_COUNT(StepTimes) && ElapsedSeconds >= StepTimes[DebugEvidenceStep])
+	{
+		AdvanceDebugEvidenceSequence();
+	}
+}
+
+void AFWPlayerController::WriteDebugEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const
+{
+	if (DebugEvidenceFolder.IsEmpty())
+	{
+		return;
+	}
+
+	const UFWDebugSubsystem* DebugSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFWDebugSubsystem>() : nullptr;
+	const AActor* TargetActor = DebugEvidenceActor.Get();
+	const UFWHealthComponent* Health = TargetActor ? TargetActor->FindComponentByClass<UFWHealthComponent>() : nullptr;
+	const UFWStateMachineComponent* StateMachine = TargetActor ? TargetActor->FindComponentByClass<UFWStateMachineComponent>() : nullptr;
+	const UFWHitZoneComponent* HitZone = TargetActor ? TargetActor->FindComponentByClass<UFWHitZoneComponent>() : nullptr;
+	const FFWHUDStateSnapshot Snapshot = BuildHUDStateSnapshot();
+
+	FString RecentEventTags;
+	FString LatestEventTag;
+	FString LatestEventTarget;
+	FString LatestEventInstigator;
+	float LatestEventMagnitude = 0.0f;
+	int32 RecentEventCount = 0;
+	if (DebugSubsystem)
+	{
+		const TArray<FFWDebugEventRecord>& RecentEvents = DebugSubsystem->GetRecentEvents();
+		RecentEventCount = RecentEvents.Num();
+		TArray<FString> EventTagStrings;
+		EventTagStrings.Reserve(RecentEvents.Num());
+		for (const FFWDebugEventRecord& Record : RecentEvents)
+		{
+			EventTagStrings.Add(Record.EventTag.ToString());
+		}
+		RecentEventTags = FString::Join(EventTagStrings, TEXT("|"));
+		if (!RecentEvents.IsEmpty())
+		{
+			const FFWDebugEventRecord& LatestEvent = RecentEvents.Last();
+			LatestEventTag = LatestEvent.EventTag.ToString();
+			LatestEventTarget = GetNameSafe(LatestEvent.Target.Get());
+			LatestEventInstigator = GetNameSafe(LatestEvent.InstigatorActor.Get());
+			LatestEventMagnitude = LatestEvent.Magnitude;
+		}
+	}
+
+	const FString AbsoluteFolder = FPaths::ConvertRelativePathToFull(DebugEvidenceFolder);
+	IFileManager::Get().MakeDirectory(*AbsoluteFolder, true);
+	const FString EvidencePath = FPaths::Combine(AbsoluteFolder, FString::Printf(TEXT("%s_state-evidence.jsonl"), *DebugEvidencePrefix));
+	const FString Line = FString::Printf(
+		TEXT("{\"event\":\"PIE debug presentation evidence step\",\"step\":\"%s\",\"stepIndex\":%d,\"action\":\"%s\",\"debugEnabled\":%s,\"actor\":\"%s\",\"actorClass\":\"%s\",\"actorState\":\"%s\",\"actorHealth\":%.2f,\"actorMaxHealth\":%.2f,\"hitZone\":\"%s\",\"hitZoneMultiplier\":%.2f,\"recentEventCount\":%d,\"recentEventTags\":\"%s\",\"latestEventTag\":\"%s\",\"latestEventMagnitude\":%.2f,\"latestEventTarget\":\"%s\",\"latestEventInstigator\":\"%s\",\"hudPlayerState\":\"%s\",\"hudPlayerHealth\":%.2f,\"hudLives\":%d,\"hudAICount\":%d,\"hudAliveAICount\":%d,\"hudNearestAIHealth\":%.2f,\"hudNearestAIState\":\"%s\",\"lastCombat\":\"%s\"}\n"),
+		*FWJsonEscape(StepSuffix),
+		DebugEvidenceStep,
+		*FWJsonEscape(ActionLabel),
+		DebugSubsystem && DebugSubsystem->IsDebugEnabled() ? TEXT("true") : TEXT("false"),
+		*FWJsonEscape(GetNameSafe(TargetActor)),
+		TargetActor ? *FWJsonEscape(TargetActor->GetClass()->GetName()) : TEXT(""),
+		StateMachine ? *FWJsonEscape(StateMachine->CurrentState.ToString()) : TEXT("NoState"),
+		Health ? Health->CurrentHealth : 0.0f,
+		Health ? Health->MaxHealth : 0.0f,
+		HitZone ? *FWJsonEscape(HitZone->HitZoneName.ToString()) : TEXT("NoHitZone"),
+		HitZone ? HitZone->DamageMultiplier : 0.0f,
+		RecentEventCount,
+		*FWJsonEscape(RecentEventTags),
+		*FWJsonEscape(LatestEventTag),
+		LatestEventMagnitude,
+		*FWJsonEscape(LatestEventTarget),
+		*FWJsonEscape(LatestEventInstigator),
+		*FWJsonEscape(Snapshot.PlayerStateTag.ToString()),
+		Snapshot.PlayerHealth,
+		Snapshot.Lives,
+		Snapshot.AICount,
+		Snapshot.AliveAICount,
+		Snapshot.NearestAIHealth,
+		*FWJsonEscape(Snapshot.NearestAIStateTag.ToString()),
+		*FWJsonEscape(Snapshot.LastCombatDebugText));
+
+	FFileHelper::SaveStringToFile(Line, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+	UE_LOG(LogTemp, Display, TEXT("FW debug presentation wrote state evidence: %s step=%s"), *EvidencePath, *StepSuffix);
+}
+
+AActor* AFWPlayerController::FindDebugEvidenceActor() const
+{
+	if (AFWAICharacter* NearestAI = FindNearestAICharacter())
+	{
+		return NearestAI;
+	}
+
+	if (AActor* PawnActor = GetPawn())
+	{
+		return PawnActor;
+	}
+
+	return FindNearestVehicle();
 }
 
 void AFWPlayerController::DebugFireNearestAI()

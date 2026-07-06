@@ -17,12 +17,15 @@ param(
     [string]$VehicleDestructionTarget = "Car",
     [string]$AIPresentationEvidenceFolder,
     [string]$AIPresentationEvidencePrefix = ("FW_MVP_PIE_AI_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
+    [string]$DebugPresentationEvidenceFolder,
+    [string]$DebugPresentationEvidencePrefix = ("FW_MVP_PIE_Debug_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [switch]$StartPIE,
     [switch]$VehicleInteractionEvidence,
     [switch]$VehicleDriveEvidence,
     [switch]$VehicleDestructionEvidence,
     [switch]$VehicleDestructionEndMatchEvidence,
     [switch]$AIPresentationEvidence,
+    [switch]$DebugPresentationEvidence,
     [switch]$NoLogWindow,
     [switch]$EnableLiveCoding,
     [switch]$DryRun
@@ -124,6 +127,20 @@ if ($AIPresentationEvidence) {
     }
 }
 
+if ($DebugPresentationEvidence) {
+    $arguments += "-FWPIEDebugPresentationEvidence"
+    if (-not $DebugPresentationEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
+        $reportText = Get-Content -Raw $ReportPath
+        if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
+            $DebugPresentationEvidenceFolder = $Matches[1].Trim()
+        }
+    }
+    if ($DebugPresentationEvidenceFolder -and $DebugPresentationEvidenceFolder -ne "TBD") {
+        $arguments += "-FWPIEDebugPresentationEvidenceFolder=`"$DebugPresentationEvidenceFolder`""
+        $arguments += "-FWPIEDebugPresentationEvidencePrefix=`"$DebugPresentationEvidencePrefix`""
+    }
+}
+
 if ($EnableLiveCoding) {
     $arguments = $arguments | Where-Object { $_ -ne "-NoLiveCoding" }
 }
@@ -150,6 +167,9 @@ if ($DryRun) {
     Write-Host "AI presentation evidence: $([bool]$AIPresentationEvidence)"
     Write-Host "AI presentation evidence folder: $AIPresentationEvidenceFolder"
     Write-Host "AI presentation evidence prefix: $AIPresentationEvidencePrefix"
+    Write-Host "Debug presentation evidence: $([bool]$DebugPresentationEvidence)"
+    Write-Host "Debug presentation evidence folder: $DebugPresentationEvidenceFolder"
+    Write-Host "Debug presentation evidence prefix: $DebugPresentationEvidencePrefix"
     Write-Host "Log window: $(-not [bool]$NoLogWindow)"
     Write-Host "Command: `"$editor`" $($arguments -join ' ')"
     exit 0

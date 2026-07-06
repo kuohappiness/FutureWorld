@@ -9,6 +9,7 @@
 class UFWHUDWidget;
 class AFWAICharacter;
 class AFWVehicleBase;
+class AActor;
 struct FFWGameplayEvent;
 
 UCLASS()
@@ -81,6 +82,13 @@ private:
 	int32 AIEvidenceStateChangedCount = 0;
 	int32 AIEvidenceWeaponFiredCount = 0;
 	int32 AIEvidenceDamageAppliedCount = 0;
+	int32 DebugEvidenceStep = 0;
+	bool bDebugEvidenceActive = false;
+	double DebugEvidenceStartTime = 0.0;
+	FTSTicker::FDelegateHandle DebugEvidenceTickerHandle;
+	FString DebugEvidenceFolder;
+	FString DebugEvidencePrefix = TEXT("FW_MVP_PIE_Debug");
+	TObjectPtr<AActor> DebugEvidenceActor;
 
 	void CreateHUDWidget();
 	void RefreshHUDWidget();
@@ -112,6 +120,11 @@ private:
 	void TickAIEvidenceSequence();
 	void WriteAIEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
 	void PositionAIEvidenceTarget(float DistanceFromPlayer);
+	void StartDebugEvidenceSequence();
+	void AdvanceDebugEvidenceSequence();
+	void TickDebugEvidenceSequence();
+	void WriteDebugEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
+	AActor* FindDebugEvidenceActor() const;
 
 	UFUNCTION()
 	void HandleVehicleDestructionEvidenceDestroyed(AFWVehicleBase* Vehicle);
