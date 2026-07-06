@@ -42,7 +42,7 @@ This report is the final manual PIE evidence record for `L_Test_CombatGarage`. A
 - [x] PIE-11 Car throttle, reverse/brake, steering, camera, and collision presentation are usable.
 - [x] PIE-12 Motorcycle throttle, reverse/brake, steering, camera, and collision presentation are usable.
 - [x] PIE-13 Vehicle destruction presentation is visible or debuggable and does not double-fire.
-- [ ] PIE-14 Core vehicle destruction subtracts lives in the player-facing HUD/debug presentation.
+- [x] PIE-14 Core vehicle destruction subtracts lives in the player-facing HUD/debug presentation.
 - [ ] PIE-15 Player respawn presentation is understandable when lives remain.
 - [ ] PIE-16 Lives reaching zero ends the match with understandable presentation.
 - [x] PIE-17 At least three AI spawn in the test map.
@@ -58,6 +58,7 @@ This report is the final manual PIE evidence record for `L_Test_CombatGarage`. A
 - Overall status: TBD
 - Blocking issues: TBD
 - Non-blocking notes: TBD
+
 
 
 
