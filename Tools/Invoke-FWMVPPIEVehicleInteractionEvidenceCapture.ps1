@@ -1,9 +1,12 @@
 param(
     [string]$EvidenceFolder,
     [string]$ReportPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "docs\FW_MVP_PIE_Acceptance_Report.md"),
+    [string]$LogPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "Saved\Logs\FW.log"),
     [string]$OutputPrefix = ("FW_MVP_PIE_VehicleInteraction_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [int]$InitialDelayMilliseconds = 2200,
     [int]$StepDelayMilliseconds = 3200,
+    [int]$MarkerTimeoutSeconds = 180,
+    [int]$PostMarkerDelayMilliseconds = 700,
     [switch]$DryRun
 )
 
@@ -28,9 +31,12 @@ if (-not (Test-Path $EvidenceFolder -PathType Container)) {
 if ($DryRun) {
     Write-Host "[OK] FW MVP PIE vehicle interaction evidence dry-run passed." -ForegroundColor Green
     Write-Host "Evidence folder: $((Resolve-Path -LiteralPath $EvidenceFolder).Path)"
+    Write-Host "Log path: $LogPath"
     Write-Host "Output prefix: $OutputPrefix"
     Write-Host "Initial delay milliseconds: $InitialDelayMilliseconds"
     Write-Host "Step delay milliseconds: $StepDelayMilliseconds"
+    Write-Host "Marker timeout seconds: $MarkerTimeoutSeconds"
+    Write-Host "Post marker delay milliseconds: $PostMarkerDelayMilliseconds"
     exit 0
 }
 
@@ -201,21 +207,56 @@ function Capture-DesktopStep {
     Write-Host "[OK] Captured vehicle interaction evidence: $outputPath ($($file.Length) bytes)" -ForegroundColor Green
 }
 
+function Wait-LogMarker {
+    param(
+        [string]$Pattern,
+        [string]$Label,
+        [int]$InitialLineCount
+    )
+
+    $deadline = (Get-Date).AddSeconds($MarkerTimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-Path $LogPath -PathType Leaf) {
+            $lines = @(Get-Content -LiteralPath $LogPath)
+            $skipLineCount = $InitialLineCount
+            if ($lines.Count -lt $InitialLineCount) {
+                $skipLineCount = 0
+            }
+            $newLines = $lines | Select-Object -Skip $skipLineCount
+            if ($newLines | Select-String -SimpleMatch -Pattern $Pattern -Quiet) {
+                Write-Host "[OK] Observed vehicle interaction marker for ${Label}: $Pattern" -ForegroundColor Green
+                return
+            }
+        }
+        Start-Sleep -Milliseconds 250
+    }
+
+    throw "Timed out waiting for vehicle interaction marker for ${Label}: $Pattern"
+}
+
 $mainWindow = Get-EditorWindowHandle $editorProcess
 if ($mainWindow -eq [IntPtr]::Zero) {
     throw "UnrealEditor capturable window is not available."
 }
 
+$initialLogLineCount = 0
+if (Test-Path $LogPath -PathType Leaf) {
+    $initialLogLineCount = @((Get-Content -LiteralPath $LogPath)).Count
+}
+
 Set-EditorWindowForeground -WindowHandle $mainWindow
-Start-Sleep -Milliseconds $InitialDelayMilliseconds
+Wait-LogMarker -Pattern "FW PIE-09 evidence step 1 ready" -Label "enter prompt" -InitialLineCount $initialLogLineCount
+Start-Sleep -Milliseconds $PostMarkerDelayMilliseconds
 Capture-DesktopStep "00-enter-prompt"
 
 Set-EditorWindowForeground -WindowHandle $mainWindow
-Start-Sleep -Milliseconds $StepDelayMilliseconds
+Wait-LogMarker -Pattern "FW PIE-09 evidence step 2 simulated E enter" -Label "entered car" -InitialLineCount $initialLogLineCount
+Start-Sleep -Milliseconds $PostMarkerDelayMilliseconds
 Capture-DesktopStep "01-entered-car"
 
 Set-EditorWindowForeground -WindowHandle $mainWindow
-Start-Sleep -Milliseconds $StepDelayMilliseconds
+Wait-LogMarker -Pattern "FW PIE-09 evidence step 3 simulated E exit" -Label "exited car" -InitialLineCount $initialLogLineCount
+Start-Sleep -Milliseconds $PostMarkerDelayMilliseconds
 Capture-DesktopStep "02-exited-car"
 
 Write-Host "[OK] FW MVP PIE vehicle interaction evidence capture completed." -ForegroundColor Green

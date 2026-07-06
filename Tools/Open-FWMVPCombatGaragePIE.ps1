@@ -1,9 +1,25 @@
 param(
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.8",
     [string]$ProjectFile = (Join-Path (Split-Path -Parent $PSScriptRoot) "FW.uproject"),
+    [string]$ReportPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "docs\FW_MVP_PIE_Acceptance_Report.md"),
     [string]$MapAsset = "/Game/FW/Maps/Test/L_Test_CombatGarage",
+    [string]$VehicleInteractionEvidenceFolder,
+    [string]$VehicleInteractionEvidencePrefix = ("FW_MVP_PIE_VehicleInteraction_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
+    [ValidateSet("Car", "Motorcycle")]
+    [string]$VehicleInteractionTarget = "Car",
+    [string]$VehicleDriveEvidenceFolder,
+    [string]$VehicleDriveEvidencePrefix = ("FW_MVP_PIE_VehicleDrive_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
+    [ValidateSet("Car", "Motorcycle")]
+    [string]$VehicleDriveTarget = "Car",
+    [string]$VehicleDestructionEvidenceFolder,
+    [string]$VehicleDestructionEvidencePrefix = ("FW_MVP_PIE_VehicleDestruction_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
+    [ValidateSet("Car", "Motorcycle")]
+    [string]$VehicleDestructionTarget = "Car",
     [switch]$StartPIE,
     [switch]$VehicleInteractionEvidence,
+    [switch]$VehicleDriveEvidence,
+    [switch]$VehicleDestructionEvidence,
+    [switch]$NoLogWindow,
     [switch]$EnableLiveCoding,
     [switch]$DryRun
 )
@@ -30,10 +46,13 @@ if (-not (Test-Path $mapFile)) {
 $arguments = @(
     "`"$ProjectFile`"",
     $MapAsset,
-    "-log",
     "-nop4",
     "-NoLiveCoding"
 )
+
+if (-not $NoLogWindow) {
+    $arguments += "-log"
+}
 
 if ($StartPIE) {
     $arguments += "-pie"
@@ -41,6 +60,47 @@ if ($StartPIE) {
 
 if ($VehicleInteractionEvidence) {
     $arguments += "-FWPIEVehicleInteractionEvidence"
+    $arguments += "-FWPIEVehicleInteractionTarget=$VehicleInteractionTarget"
+    if (-not $VehicleInteractionEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
+        $reportText = Get-Content -Raw $ReportPath
+        if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
+            $VehicleInteractionEvidenceFolder = $Matches[1].Trim()
+        }
+    }
+    if ($VehicleInteractionEvidenceFolder -and $VehicleInteractionEvidenceFolder -ne "TBD") {
+        $arguments += "-FWPIEVehicleInteractionEvidenceFolder=`"$VehicleInteractionEvidenceFolder`""
+        $arguments += "-FWPIEVehicleInteractionEvidencePrefix=`"$VehicleInteractionEvidencePrefix`""
+    }
+}
+
+if ($VehicleDriveEvidence) {
+    $arguments += "-FWPIEVehicleDriveEvidence"
+    $arguments += "-FWPIEVehicleDriveTarget=$VehicleDriveTarget"
+    if (-not $VehicleDriveEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
+        $reportText = Get-Content -Raw $ReportPath
+        if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
+            $VehicleDriveEvidenceFolder = $Matches[1].Trim()
+        }
+    }
+    if ($VehicleDriveEvidenceFolder -and $VehicleDriveEvidenceFolder -ne "TBD") {
+        $arguments += "-FWPIEVehicleDriveEvidenceFolder=`"$VehicleDriveEvidenceFolder`""
+        $arguments += "-FWPIEVehicleDriveEvidencePrefix=`"$VehicleDriveEvidencePrefix`""
+    }
+}
+
+if ($VehicleDestructionEvidence) {
+    $arguments += "-FWPIEVehicleDestructionEvidence"
+    $arguments += "-FWPIEVehicleDestructionTarget=$VehicleDestructionTarget"
+    if (-not $VehicleDestructionEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
+        $reportText = Get-Content -Raw $ReportPath
+        if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
+            $VehicleDestructionEvidenceFolder = $Matches[1].Trim()
+        }
+    }
+    if ($VehicleDestructionEvidenceFolder -and $VehicleDestructionEvidenceFolder -ne "TBD") {
+        $arguments += "-FWPIEVehicleDestructionEvidenceFolder=`"$VehicleDestructionEvidenceFolder`""
+        $arguments += "-FWPIEVehicleDestructionEvidencePrefix=`"$VehicleDestructionEvidencePrefix`""
+    }
 }
 
 if ($EnableLiveCoding) {
@@ -54,6 +114,18 @@ if ($DryRun) {
     Write-Host "Map: $MapAsset"
     Write-Host "Start PIE: $([bool]$StartPIE)"
     Write-Host "Vehicle interaction evidence: $([bool]$VehicleInteractionEvidence)"
+    Write-Host "Vehicle interaction target: $VehicleInteractionTarget"
+    Write-Host "Vehicle interaction evidence folder: $VehicleInteractionEvidenceFolder"
+    Write-Host "Vehicle interaction evidence prefix: $VehicleInteractionEvidencePrefix"
+    Write-Host "Vehicle drive evidence: $([bool]$VehicleDriveEvidence)"
+    Write-Host "Vehicle drive target: $VehicleDriveTarget"
+    Write-Host "Vehicle drive evidence folder: $VehicleDriveEvidenceFolder"
+    Write-Host "Vehicle drive evidence prefix: $VehicleDriveEvidencePrefix"
+    Write-Host "Vehicle destruction evidence: $([bool]$VehicleDestructionEvidence)"
+    Write-Host "Vehicle destruction target: $VehicleDestructionTarget"
+    Write-Host "Vehicle destruction evidence folder: $VehicleDestructionEvidenceFolder"
+    Write-Host "Vehicle destruction evidence prefix: $VehicleDestructionEvidencePrefix"
+    Write-Host "Log window: $(-not [bool]$NoLogWindow)"
     Write-Host "Command: `"$editor`" $($arguments -join ' ')"
     exit 0
 }

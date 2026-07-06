@@ -75,6 +75,24 @@ public:
 
 	void HandleExitInput();
 
+	UFUNCTION(BlueprintPure, Category = "FW|Vehicle")
+	float GetCurrentForwardSpeed() const { return CurrentForwardSpeed; }
+
+	UFUNCTION(BlueprintPure, Category = "FW|Vehicle")
+	float GetThrottleInput() const { return ThrottleInput; }
+
+	UFUNCTION(BlueprintPure, Category = "FW|Vehicle")
+	float GetSteeringInput() const { return SteeringInput; }
+
+	UFUNCTION(BlueprintPure, Category = "FW|Vehicle")
+	UBoxComponent* GetVehicleCollision() const { return VehicleCollision; }
+
+	UFUNCTION(BlueprintPure, Category = "FW|Vehicle")
+	UCameraComponent* GetVehicleCameraComponent() const { return CameraComponent; }
+
+	UFUNCTION(BlueprintPure, Category = "FW|Vehicle")
+	UFloatingPawnMovement* GetVehicleMovementComponent() const { return MovementComponent; }
+
 	UPROPERTY(BlueprintAssignable, Category = "FW|Vehicle")
 	FFWVehicleDestroyedSignature OnVehicleDestroyed;
 

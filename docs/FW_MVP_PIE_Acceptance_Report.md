@@ -37,10 +37,10 @@ This report is the final manual PIE evidence record for `L_Test_CombatGarage`. A
 - [x] PIE-06 Firing consumes ammo and produces usable hit/framing feedback.
 - [x] PIE-07 Weapons can damage AI with visible or debuggable feedback.
 - [x] PIE-08 Weapons can damage vehicles with visible or debuggable feedback.
-- [ ] PIE-09 Player can enter and exit car with `E`; prompt/framing is understandable.
-- [ ] PIE-10 Player can enter and exit motorcycle with `E`; prompt/framing is understandable.
-- [ ] PIE-11 Car throttle, reverse/brake, steering, camera, and collision presentation are usable.
-- [ ] PIE-12 Motorcycle throttle, reverse/brake, steering, camera, and collision presentation are usable.
+- [x] PIE-09 Player can enter and exit car with `E`; prompt/framing is understandable.
+- [x] PIE-10 Player can enter and exit motorcycle with `E`; prompt/framing is understandable.
+- [x] PIE-11 Car throttle, reverse/brake, steering, camera, and collision presentation are usable.
+- [x] PIE-12 Motorcycle throttle, reverse/brake, steering, camera, and collision presentation are usable.
 - [ ] PIE-13 Vehicle destruction presentation is visible or debuggable and does not double-fire.
 - [ ] PIE-14 Core vehicle destruction subtracts lives in the player-facing HUD/debug presentation.
 - [ ] PIE-15 Player respawn presentation is understandable when lives remain.
@@ -58,6 +58,10 @@ This report is the final manual PIE evidence record for `L_Test_CombatGarage`. A
 - Overall status: TBD
 - Blocking issues: TBD
 - Non-blocking notes: TBD
+
+
+
+
 
 
 
