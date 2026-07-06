@@ -70,6 +70,17 @@ private:
 	int32 VehicleDestructionEvidenceDelegateCount = 0;
 	int32 VehicleDestructionEvidenceGameplayEventCount = 0;
 	int32 VehicleDestructionEvidenceRespawnEventCount = 0;
+	int32 AIEvidenceStep = 0;
+	bool bAIEvidenceActive = false;
+	double AIEvidenceStartTime = 0.0;
+	FTSTicker::FDelegateHandle AIEvidenceTickerHandle;
+	FString AIEvidenceFolder;
+	FString AIEvidencePrefix = TEXT("FW_MVP_PIE_AI");
+	TObjectPtr<AFWAICharacter> AIEvidenceTargetActor;
+	float AIEvidenceInitialPlayerHealth = 0.0f;
+	int32 AIEvidenceStateChangedCount = 0;
+	int32 AIEvidenceWeaponFiredCount = 0;
+	int32 AIEvidenceDamageAppliedCount = 0;
 
 	void CreateHUDWidget();
 	void RefreshHUDWidget();
@@ -96,12 +107,20 @@ private:
 	void TickVehicleDestructionEvidenceSequence();
 	AFWVehicleBase* FindVehicleDestructionEvidenceTarget() const;
 	void WriteVehicleDestructionEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
+	void StartAIEvidenceSequence();
+	void AdvanceAIEvidenceSequence();
+	void TickAIEvidenceSequence();
+	void WriteAIEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const;
+	void PositionAIEvidenceTarget(float DistanceFromPlayer);
 
 	UFUNCTION()
 	void HandleVehicleDestructionEvidenceDestroyed(AFWVehicleBase* Vehicle);
 
 	UFUNCTION()
 	void HandleVehicleDestructionEvidenceGameplayEvent(const FFWGameplayEvent& Event);
+
+	UFUNCTION()
+	void HandleAIEvidenceGameplayEvent(const FFWGameplayEvent& Event);
 
 	void DebugFireNearestAI();
 	void DebugFireNearestVehicle();

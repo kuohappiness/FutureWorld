@@ -46,7 +46,7 @@ This report is the final manual PIE evidence record for `L_Test_CombatGarage`. A
 - [x] PIE-15 Player respawn presentation is understandable when lives remain.
 - [x] PIE-16 Lives reaching zero ends the match with understandable presentation.
 - [x] PIE-17 At least three AI spawn in the test map.
-- [ ] PIE-18 AI can pursue and attack the player with acceptable pathing/framing for MVP.
+- [x] PIE-18 AI can pursue and attack the player with acceptable pathing/framing for MVP.
 - [x] PIE-19 HUD displays health, lives, current weapon, ammo, and core vehicle health correctly.
 - [ ] PIE-20 Debug HUD or debug output exposes core actor state and recent gameplay events.
 - [ ] PIE-21 No UI action directly changes health, lives, vehicle destruction, or match end state.
@@ -58,6 +58,7 @@ This report is the final manual PIE evidence record for `L_Test_CombatGarage`. A
 - Overall status: TBD
 - Blocking issues: TBD
 - Non-blocking notes: TBD
+
 
 
 

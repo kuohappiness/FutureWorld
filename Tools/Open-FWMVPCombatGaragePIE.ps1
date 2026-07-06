@@ -15,11 +15,14 @@ param(
     [string]$VehicleDestructionEvidencePrefix = ("FW_MVP_PIE_VehicleDestruction_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [ValidateSet("Car", "Motorcycle")]
     [string]$VehicleDestructionTarget = "Car",
+    [string]$AIPresentationEvidenceFolder,
+    [string]$AIPresentationEvidencePrefix = ("FW_MVP_PIE_AI_{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")),
     [switch]$StartPIE,
     [switch]$VehicleInteractionEvidence,
     [switch]$VehicleDriveEvidence,
     [switch]$VehicleDestructionEvidence,
     [switch]$VehicleDestructionEndMatchEvidence,
+    [switch]$AIPresentationEvidence,
     [switch]$NoLogWindow,
     [switch]$EnableLiveCoding,
     [switch]$DryRun
@@ -107,6 +110,20 @@ if ($VehicleDestructionEvidence) {
     }
 }
 
+if ($AIPresentationEvidence) {
+    $arguments += "-FWPIEAIPresentationEvidence"
+    if (-not $AIPresentationEvidenceFolder -and (Test-Path $ReportPath -PathType Leaf)) {
+        $reportText = Get-Content -Raw $ReportPath
+        if ($reportText -match "Screenshot or capture folder:\s*(.+)") {
+            $AIPresentationEvidenceFolder = $Matches[1].Trim()
+        }
+    }
+    if ($AIPresentationEvidenceFolder -and $AIPresentationEvidenceFolder -ne "TBD") {
+        $arguments += "-FWPIEAIPresentationEvidenceFolder=`"$AIPresentationEvidenceFolder`""
+        $arguments += "-FWPIEAIPresentationEvidencePrefix=`"$AIPresentationEvidencePrefix`""
+    }
+}
+
 if ($EnableLiveCoding) {
     $arguments = $arguments | Where-Object { $_ -ne "-NoLiveCoding" }
 }
@@ -130,6 +147,9 @@ if ($DryRun) {
     Write-Host "Vehicle destruction target: $VehicleDestructionTarget"
     Write-Host "Vehicle destruction evidence folder: $VehicleDestructionEvidenceFolder"
     Write-Host "Vehicle destruction evidence prefix: $VehicleDestructionEvidencePrefix"
+    Write-Host "AI presentation evidence: $([bool]$AIPresentationEvidence)"
+    Write-Host "AI presentation evidence folder: $AIPresentationEvidenceFolder"
+    Write-Host "AI presentation evidence prefix: $AIPresentationEvidencePrefix"
     Write-Host "Log window: $(-not [bool]$NoLogWindow)"
     Write-Host "Command: `"$editor`" $($arguments -join ' ')"
     exit 0

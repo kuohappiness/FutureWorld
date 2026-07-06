@@ -1,5 +1,6 @@
 #include "FWPlayerController.h"
 
+#include "../AI/FWEnemyAIController.h"
 #include "../Characters/FWAICharacter.h"
 #include "../Characters/FWCharacterBase.h"
 #include "../Characters/FWPlayerCharacter.h"
@@ -57,6 +58,7 @@ void AFWPlayerController::BeginPlay()
 	StartVehicleInteractionEvidenceSequence();
 	StartVehicleDriveEvidenceSequence();
 	StartVehicleDestructionEvidenceSequence();
+	StartAIEvidenceSequence();
 }
 
 void AFWPlayerController::Tick(float DeltaSeconds)
@@ -66,6 +68,7 @@ void AFWPlayerController::Tick(float DeltaSeconds)
 	TickVehicleInteractionEvidenceSequence();
 	TickVehicleDriveEvidenceSequence();
 	TickVehicleDestructionEvidenceSequence();
+	TickAIEvidenceSequence();
 
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	if ((Now - LastHUDRefreshTime) >= HUDRefreshInterval)
@@ -1093,6 +1096,199 @@ void AFWPlayerController::HandleVehicleDestructionEvidenceGameplayEvent(const FF
 	else if (Event.EventTag == RespawnCompletedTag)
 	{
 		++VehicleDestructionEvidenceRespawnEventCount;
+	}
+}
+
+void AFWPlayerController::StartAIEvidenceSequence()
+{
+	if (!GetWorld() || !IsLocalPlayerController())
+	{
+		return;
+	}
+
+	if (!FParse::Param(FCommandLine::Get(), TEXT("FWPIEAIPresentationEvidence")))
+	{
+		return;
+	}
+
+	AIEvidenceStep = 0;
+	bAIEvidenceActive = true;
+	AIEvidenceStartTime = GetWorld()->GetTimeSeconds();
+	AIEvidenceStateChangedCount = 0;
+	AIEvidenceWeaponFiredCount = 0;
+	AIEvidenceDamageAppliedCount = 0;
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEAIPresentationEvidenceFolder="), AIEvidenceFolder);
+	FParse::Value(FCommandLine::Get(), TEXT("FWPIEAIPresentationEvidencePrefix="), AIEvidencePrefix);
+
+	if (const AFWCharacterBase* PlayerCharacter = Cast<AFWCharacterBase>(GetPawn()))
+	{
+		if (const UFWHealthComponent* PlayerHealth = PlayerCharacter->GetHealthComponent())
+		{
+			AIEvidenceInitialPlayerHealth = PlayerHealth->CurrentHealth;
+		}
+	}
+
+	if (!AIEvidenceFolder.IsEmpty())
+	{
+		const FString EvidencePath = FPaths::Combine(FPaths::ConvertRelativePathToFull(AIEvidenceFolder), FString::Printf(TEXT("%s_state-evidence.jsonl"), *AIEvidencePrefix));
+		IFileManager::Get().MakeDirectory(*FPaths::GetPath(EvidencePath), true);
+		const FString Header = FString::Printf(TEXT("{\"event\":\"PIE AI presentation evidence start\",\"prefix\":\"%s\",\"worldType\":%d}\n"), *FWJsonEscape(AIEvidencePrefix), static_cast<int32>(GetWorld()->WorldType));
+		FFileHelper::SaveStringToFile(Header, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
+
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UFWEventSubsystem* EventSubsystem = GameInstance->GetSubsystem<UFWEventSubsystem>())
+		{
+			EventSubsystem->OnGameplayEvent.AddUniqueDynamic(this, &AFWPlayerController::HandleAIEvidenceGameplayEvent);
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("FW AI presentation evidence sequence started. WorldType=%d"), static_cast<int32>(GetWorld()->WorldType));
+	AIEvidenceTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float DeltaTime)
+	{
+		TickAIEvidenceSequence();
+		return bAIEvidenceActive;
+	}));
+}
+
+void AFWPlayerController::AdvanceAIEvidenceSequence()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	++AIEvidenceStep;
+	if (AIEvidenceStep == 1)
+	{
+		AIEvidenceTargetActor = FindNearestAICharacter();
+		if (AIEvidenceTargetActor && !AIEvidenceTargetActor->GetController())
+		{
+			AIEvidenceTargetActor->SpawnDefaultController();
+		}
+		PositionAIEvidenceTarget(1500.0f);
+		LastCombatDebugText = TEXT("AI evidence positioned target for Alert pursuit");
+		ForceRefreshHUD();
+		WriteAIEvidenceState(TEXT("00-alert-setup"), TEXT("alert-setup"));
+	}
+	else if (AIEvidenceStep == 2)
+	{
+		LastCombatDebugText = TEXT("AI evidence observed Alert pursuit");
+		ForceRefreshHUD();
+		WriteAIEvidenceState(TEXT("01-alert-pursuit"), TEXT("alert-pursuit"));
+	}
+	else if (AIEvidenceStep == 3)
+	{
+		PositionAIEvidenceTarget(450.0f);
+		LastCombatDebugText = TEXT("AI evidence positioned target for AttackOnFoot");
+		ForceRefreshHUD();
+		WriteAIEvidenceState(TEXT("02-attack-setup"), TEXT("attack-setup"));
+	}
+	else if (AIEvidenceStep == 4)
+	{
+		LastCombatDebugText = TEXT("AI evidence observed AttackOnFoot presentation");
+		ForceRefreshHUD();
+		WriteAIEvidenceState(TEXT("03-attack-observed"), TEXT("attack-observed"));
+		bAIEvidenceActive = false;
+		FTSTicker::GetCoreTicker().RemoveTicker(AIEvidenceTickerHandle);
+	}
+}
+
+void AFWPlayerController::TickAIEvidenceSequence()
+{
+	if (!bAIEvidenceActive || !GetWorld())
+	{
+		return;
+	}
+
+	const double ElapsedSeconds = GetWorld()->GetTimeSeconds() - AIEvidenceStartTime;
+	constexpr double StepTimes[] = { 2.0, 5.0, 7.0, 9.0 };
+	if (AIEvidenceStep < UE_ARRAY_COUNT(StepTimes) && ElapsedSeconds >= StepTimes[AIEvidenceStep])
+	{
+		AdvanceAIEvidenceSequence();
+	}
+}
+
+void AFWPlayerController::WriteAIEvidenceState(const FString& StepSuffix, const FString& ActionLabel) const
+{
+	if (AIEvidenceFolder.IsEmpty())
+	{
+		return;
+	}
+
+	const AFWAICharacter* TargetAI = AIEvidenceTargetActor.Get();
+	const UFWHealthComponent* AIHealth = TargetAI ? TargetAI->GetHealthComponent() : nullptr;
+	const UFWStateMachineComponent* AIStateMachine = TargetAI ? TargetAI->GetStateMachineComponent() : nullptr;
+	const AFWWeaponBase* AIWeapon = TargetAI ? TargetAI->GetCurrentWeapon() : nullptr;
+	const AFWCharacterBase* PlayerCharacter = Cast<AFWCharacterBase>(GetPawn());
+	const UFWHealthComponent* PlayerHealth = PlayerCharacter ? PlayerCharacter->GetHealthComponent() : nullptr;
+	const FFWHUDStateSnapshot Snapshot = BuildHUDStateSnapshot();
+	const float DistanceToPlayer = TargetAI && PlayerCharacter ? FVector::Dist2D(TargetAI->GetActorLocation(), PlayerCharacter->GetActorLocation()) : 0.0f;
+	const FString AbsoluteFolder = FPaths::ConvertRelativePathToFull(AIEvidenceFolder);
+	IFileManager::Get().MakeDirectory(*AbsoluteFolder, true);
+	const FString EvidencePath = FPaths::Combine(AbsoluteFolder, FString::Printf(TEXT("%s_state-evidence.jsonl"), *AIEvidencePrefix));
+	const FString Line = FString::Printf(
+		TEXT("{\"event\":\"PIE AI presentation evidence step\",\"step\":\"%s\",\"stepIndex\":%d,\"action\":\"%s\",\"ai\":\"%s\",\"aiClass\":\"%s\",\"aiState\":\"%s\",\"aiHealth\":%.2f,\"aiMaxHealth\":%.2f,\"aiAmmo\":%d,\"distanceToPlayer\":%.2f,\"playerHealth\":%.2f,\"playerInitialHealth\":%.2f,\"hudAICount\":%d,\"hudAliveAICount\":%d,\"hudNearestAIHealth\":%.2f,\"hudNearestAIState\":\"%s\",\"stateChangedCount\":%d,\"weaponFiredCount\":%d,\"damageAppliedCount\":%d,\"lastCombat\":\"%s\"}\n"),
+		*FWJsonEscape(StepSuffix),
+		AIEvidenceStep,
+		*FWJsonEscape(ActionLabel),
+		*FWJsonEscape(GetNameSafe(TargetAI)),
+		TargetAI ? *FWJsonEscape(TargetAI->GetClass()->GetName()) : TEXT(""),
+		AIStateMachine ? *FWJsonEscape(AIStateMachine->CurrentState.ToString()) : TEXT(""),
+		AIHealth ? AIHealth->CurrentHealth : 0.0f,
+		AIHealth ? AIHealth->MaxHealth : 0.0f,
+		AIWeapon ? AIWeapon->GetCurrentAmmo() : 0,
+		DistanceToPlayer,
+		PlayerHealth ? PlayerHealth->CurrentHealth : 0.0f,
+		AIEvidenceInitialPlayerHealth,
+		Snapshot.AICount,
+		Snapshot.AliveAICount,
+		Snapshot.NearestAIHealth,
+		*FWJsonEscape(Snapshot.NearestAIStateTag.ToString()),
+		AIEvidenceStateChangedCount,
+		AIEvidenceWeaponFiredCount,
+		AIEvidenceDamageAppliedCount,
+		*FWJsonEscape(LastCombatDebugText));
+
+	FFileHelper::SaveStringToFile(Line, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+	UE_LOG(LogTemp, Display, TEXT("FW AI presentation wrote state evidence: %s step=%s"), *EvidencePath, *StepSuffix);
+}
+
+void AFWPlayerController::PositionAIEvidenceTarget(float DistanceFromPlayer)
+{
+	AFWAICharacter* TargetAI = AIEvidenceTargetActor.Get();
+	const APawn* PlayerPawn = GetPawn();
+	if (!TargetAI || !PlayerPawn)
+	{
+		return;
+	}
+
+	const FVector PlayerLocation = PlayerPawn->GetActorLocation();
+	const FVector TargetLocation = PlayerLocation + FVector(DistanceFromPlayer, 0.0f, 0.0f);
+	TargetAI->SetActorLocationAndRotation(TargetLocation, (PlayerLocation - TargetLocation).Rotation(), false, nullptr, ETeleportType::TeleportPhysics);
+	if (AFWEnemyAIController* AIController = Cast<AFWEnemyAIController>(TargetAI->GetController()))
+	{
+		AIController->StopMovement();
+	}
+}
+
+void AFWPlayerController::HandleAIEvidenceGameplayEvent(const FFWGameplayEvent& Event)
+{
+	const FGameplayTag AIStateChangedTag = FGameplayTag::RequestGameplayTag(TEXT("Event.AI.StateChanged"));
+	const FGameplayTag WeaponFiredTag = FGameplayTag::RequestGameplayTag(TEXT("Event.Weapon.Fired"));
+	const FGameplayTag DamageAppliedTag = FGameplayTag::RequestGameplayTag(TEXT("Event.Damage.Applied"));
+	if (Event.EventTag == AIStateChangedTag && Event.Target == AIEvidenceTargetActor.Get())
+	{
+		++AIEvidenceStateChangedCount;
+	}
+	else if (Event.EventTag == WeaponFiredTag && Event.InstigatorActor == AIEvidenceTargetActor.Get())
+	{
+		++AIEvidenceWeaponFiredCount;
+	}
+	else if (Event.EventTag == DamageAppliedTag && Event.InstigatorActor == AIEvidenceTargetActor.Get())
+	{
+		++AIEvidenceDamageAppliedCount;
 	}
 }
 
